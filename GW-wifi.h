@@ -37,7 +37,7 @@ void initializeGWwifi() {
   WiFi.mode(WIFI_STA);
   wifiMulti.addAP("COMPEX-DEN", "gypsyflies6008");
   wifiMulti.addAP("COMPEX_US", "gypsyflies6008");
-  wifiMulti.addAP("AwesomeNetUS", "trentis##1");
+  //wifiMulti.addAP("AwesomeNetUS", "trentis##1");
   wifiMulti.addAP("AwesomeNetDS", "trentis##1");
 
   WiFi.onEvent(WiFiEvent);

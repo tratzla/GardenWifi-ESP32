@@ -7,6 +7,7 @@
 #include "icons.h"
 #include "font_dialog.h"
 #include "datapoint.h"
+#include "GW-readsensortask.h"
 
 #define screen_width 128
 #define screen_height 64
@@ -17,6 +18,7 @@
 #define font_ipaddr ArialMT_Plain_10
 
 #define icon_offset 14
+#define units_offset -8
 #define dew_offset -2
 
 bool USE_DEWPOINT = true;
@@ -68,17 +70,14 @@ void drawTemperatureStatus(uint startx, uint starty, DataPoint datapoint){
   String unit = String("°C");
   uint x = startx;
   uint y = starty;
-  //DataPoint datapoint = GW_sensors.getSensorLastDatapoint();
 
-  // Write value itself
-  // if (!GW_sensors.getSensorReady()) {
-  //   toPrint = String("---");
-  // } else {
-  //   toPrint = String(abs(datapoint.temperature), 1);
-  // }
+  //Write value itself
+  if (datapoint.timestamp == 0) {
+    toPrint = String("---");
+  } else {
+    toPrint = String(abs(datapoint.temperature), 1);
+  }
   Heltec.display->setFont(font_value);
-  //x += 9;
-  //Heltec.display->drawString(x, y, toPrint);
   Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
   Heltec.display->drawString(screen_width/4, y, toPrint);
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
@@ -91,14 +90,11 @@ void drawTemperatureStatus(uint startx, uint starty, DataPoint datapoint){
   }
 
   /* Units */
-  x = screen_width/2 - 8;
+  x = screen_width/2 + units_offset;
   Heltec.display->setFont(font_units);
   Heltec.display->drawString(x, y, unit);
-
-  /* Icon */
-  //drawTempIcon(GW_sensors.getSensorReading());
-
 }
+
 
 void drawHumidityIcon(bool busy) {
   uint x = screen_width/2 + icon_offset;
@@ -115,15 +111,14 @@ void drawHumidityStatus(uint startx, uint starty, bool use_dewpoint, DataPoint d
   String unit = String("%");
   uint x = startx;
   uint y = starty;
-  //DataPoint datapoint = GW_sensors.getSensorLastDatapoint();
 
   /* print value */
   float value = use_dewpoint ? datapoint.dewpoint : datapoint.humidity;
-  // if (!GW_sensors.getSensorReady()) {
-  //   toPrint = String("---");
-  // } else {    
-  //   toPrint = String(abs(value), 1);
-  // }
+  if (datapoint.timestamp == 0) {
+    toPrint = String("---");
+  } else {    
+    toPrint = String(abs(value), 1);
+  }
 
   if (value < 0 ) {
     Heltec.display->setFont(font_value);
@@ -146,9 +141,6 @@ void drawHumidityStatus(uint startx, uint starty, bool use_dewpoint, DataPoint d
   }
   Heltec.display->setFont(font_units);
   Heltec.display->drawString(x, y, unit);
-
-  /* Hum-Icon */
-  //drawHumidityIcon(GW_sensors.getSensorReading());
 }
 
 // Humidity function for printing in RELATIVE HUMIDITY
@@ -165,8 +157,36 @@ void drawWifiStatus() {
   } else {
     drawSignalbars(-100);
   }
-
 }
+
+void drawWifiSDetails() {
+    uint wifiCentre = screen_width/2 - 16;
+    Heltec.display->setFont(ArialMT_Plain_10);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+    Heltec.display->drawString(screen_width/2, 0, "WiFi");
+
+    Heltec.display->setFont(ArialMT_Plain_10);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_RIGHT);
+    Heltec.display->drawString(wifiCentre, 16, "IP:");
+    Heltec.display->setFont(Dialog_plain_14);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
+    Heltec.display->drawString(wifiCentre, 16, WiFi.localIP().toString());
+
+    Heltec.display->setFont(ArialMT_Plain_10);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_RIGHT);
+    Heltec.display->drawString(wifiCentre, 30, "Gateway:");
+    Heltec.display->setFont(Dialog_plain_14);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
+    Heltec.display->drawString(wifiCentre, 30, WiFi.gatewayIP().toString());
+
+    Heltec.display->setFont(ArialMT_Plain_10);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_RIGHT);
+    Heltec.display->drawString(wifiCentre, 44, "AP:");
+    Heltec.display->setFont(ArialMT_Plain_10);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
+    Heltec.display->drawString(wifiCentre, 44, WiFi.SSID());
+}
+
 
 void initializeGWDisplay(){
   Heltec.display->flipScreenVertically();
