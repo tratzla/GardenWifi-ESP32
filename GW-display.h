@@ -8,6 +8,7 @@
 #include "font_dialog.h"
 #include "datapoint.h"
 #include "GW-readsensortask.h"
+#include "battery.h"
 
 #define screen_width 128
 #define screen_height 64
@@ -23,8 +24,31 @@
 
 bool USE_DEWPOINT = true;
 
+
+void displayBattDebug(){
+  Heltec.display->clear();
+  Heltec.display->setFont(Dialog_plain_14);
+
+  Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
+  String toPrint = String("  Trent's: ") + String(meth1) + String(" mV");
+  Heltec.display->drawString(0, 0, toPrint);
+
+  String toPrint2 = String("  Heltec's: ") + String(meth2) + String(" mV");
+  Heltec.display->drawString(0, 16, toPrint2);
+
+
+  Heltec.display->setFont(ArialMT_Plain_10);
+  toPrint = String(" RAW: ") + String(raw_counts);
+  Heltec.display->drawString(0, 50, toPrint);
+
+  Heltec.display->display();
+
+}
+
 void drawBattery(int8_t batt) {
-  if (batt > 80) {
+  if        (batt > 100) {
+    Heltec.display->drawXbm(100, 0, battery_level_w, battery_level_h, battery_nobatt_16);
+  } else if (batt > 80)  {
     Heltec.display->drawXbm(100, 0, battery_level_w, battery_level_h, battery_fourbars_16);
   } else if (batt > 60 ) {
     Heltec.display->drawXbm(100, 0, battery_level_w, battery_level_h, battery_threebars_16);    
@@ -32,9 +56,9 @@ void drawBattery(int8_t batt) {
     Heltec.display->drawXbm(100, 0, battery_level_w, battery_level_h, battery_twobars_16);    
   } else if (batt > 20 ) {
     Heltec.display->drawXbm(100, 0, battery_level_w, battery_level_h, battery_onebars_16);    
-  } else if (batt > 0 ) {
+  } else if (batt > 0 )  {
     Heltec.display->drawXbm(100, 0, battery_level_w, battery_level_h, battery_zerobars_16);    
-  } else {
+  } else                 {
     Heltec.display->drawXbm(100, 0, battery_level_w, battery_level_h, battery_nobatt_16);    
   }
 }
