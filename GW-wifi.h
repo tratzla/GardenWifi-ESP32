@@ -5,11 +5,7 @@
 #include "GW-influx.h"
 
 WiFiMulti wifiMulti;
-//bool wifi_connected = false;
-//bool wifi_connected() {
-//   return wifiMulti.run() != WL_CONNECTED;
-//   return WiFi.status() != WL_CONNECTED;
-// }
+Point pointWifiStatus("Wifi_Status");
 
 //wifi event handler
 void WiFiEvent(WiFiEvent_t event){
@@ -31,18 +27,45 @@ void WiFiEvent(WiFiEvent_t event){
     }
 }
 
+void logWifiStatus() {
+  pointWifiStatus.clearFields();
+  pointWifiStatus.clearTags();
+
+  pointWifiStatus.addTag("device", DEVICE);
+  pointWifiStatus.addTag("SSID", WiFi.SSID());
+  
+  if (WiFi.status() != WL_CONNECTED) {
+    pointWifiStatus.addField("rssi", -99);
+    pointWifiStatus.addTag("DISCONNECTED", "true");
+  } else {
+    pointWifiStatus.addField("rssi", WiFi.RSSI());
+  }
+
+  Serial.print("\nWriting Wifi Status: ");
+  Serial.println(pointWifiStatus.toLineProtocol());
+  writeNewPoint(Point point)
+  if (!writeNewPoint(pointWifiStatus)) {
+    Serial.print("InfluxDB write wifistatus failed: ");
+    Serial.println(getLastErrorMessage());
+  }
+}
+
+
 void initializeGWwifi() {
   Serial.println("Connecting to a WiFi network: " );
 
   WiFi.mode(WIFI_STA);
   wifiMulti.addAP("COMPEX-DEN", "gypsyflies6008");
   wifiMulti.addAP("COMPEX_US", "gypsyflies6008");
-  //wifiMulti.addAP("AwesomeNetUS", "trentis##1");
+  wifiMulti.addAP("AwesomeNetUS", "trentis##1");
   wifiMulti.addAP("AwesomeNetDS", "trentis##1");
 
   WiFi.onEvent(WiFiEvent);
   Serial.println("Waiting for WIFI connection...");
   wifiMulti.run();
+
+  pointWifiStatus.addTag("device", DEVICE);
+  pointWifiStatus.addTag("SSID", WiFi.SSID());
   
 }
 

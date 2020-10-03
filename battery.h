@@ -76,7 +76,7 @@ float readBattLevel() {
   // Heltec had this formula //
   meth2 = (newreading * 0.0025*1000.0) - 375;
   // readings[idx] = newreading * 0.0025*1000.0;
-  Serial.printf("ADC Raw Reading[%d]: %d mV\n", newreading, readings[idx]);
+  //Serial.printf("ADC Raw Reading[%d]: %d mV\n", newreading, readings[idx]);
 
   
   total = total + readings[idx];
@@ -84,7 +84,7 @@ float readBattLevel() {
   if (idx >= VBATT_SMOOTH) { idx=0; } // Check if idx is past the end of buffer, if so then reset
   
   float voltage = ((float)total / 1000.0 / (float)VBATT_SMOOTH);
-  Serial.printf("Battery Voltage (avg): %.2f\n", voltage);
+  //Serial.printf("Battery Voltage (avg): %.2f\n", voltage);
   
   return voltage;  
 }
@@ -104,36 +104,31 @@ void initBatteryMonitor()
   battStatusInflux.addTag("Battery", "MAIN");
 }
 
-void sendBatteryToInflux(){
-
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Wifi connection lost, can't send Batt to influx");
-    return ;
-  }
+void sendBatteryToInflux() {
 
   battStatusInflux.clearFields();
   battStatusInflux.addField("voltage", battVoltage);
   battStatusInflux.addField("percent", battPercent);
 
   // Write point
-  Serial.print("\nWriting Battery Status: ");
-  Serial.println(battStatusInflux.toLineProtocol());
+  //Serial.print("\nWriting Battery Status: ");
+  //Serial.println(battStatusInflux.toLineProtocol());
   if (!writeNewPoint(battStatusInflux)) {
     Serial.print("InfluxDB write Battery Status failed: ");
     Serial.println(getLastErrorMessage());
   } else {
-    Serial.println("  ...done.\n");
+    //Serial.println("  ...done.\n");
   }
   
 }
 
 
-void checkBattery()
+void readLogBattery()
 {
   battVoltage = readBattLevel();
   battPercent = calcBattPercent(battVoltage);
-
   sendBatteryToInflux();
+
 }
 
 

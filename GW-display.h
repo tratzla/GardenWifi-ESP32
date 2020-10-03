@@ -6,8 +6,9 @@
 #include <WiFiMulti.h>
 #include "icons.h"
 #include "font_dialog.h"
-#include "datapoint.h"
-#include "GW-readsensortask.h"
+#include "GW-datalog.h"
+// #include "GW-readsensortask.h"
+#include "GW-sensors.h"
 #include "battery.h"
 
 #define screen_width 128
@@ -89,7 +90,7 @@ void drawTempIcon(bool busy) {
   }
 }
 
-void drawTemperatureStatus(uint startx, uint starty, DataPoint datapoint){
+void drawTemperatureStatus(uint startx, uint starty, DhtDataPoint datapoint){
   String toPrint = String("");
   String unit = String("°C");
   uint x = startx;
@@ -130,7 +131,7 @@ void drawHumidityIcon(bool busy) {
   }
 }
 
-void drawHumidityStatus(uint startx, uint starty, bool use_dewpoint, DataPoint datapoint) {
+void drawHumidityStatus(uint startx, uint starty, bool use_dewpoint, DhtDataPoint datapoint) {
   String toPrint = String("");
   String unit = String("%");
   uint x = startx;
@@ -168,7 +169,7 @@ void drawHumidityStatus(uint startx, uint starty, bool use_dewpoint, DataPoint d
 }
 
 // Humidity function for printing in RELATIVE HUMIDITY
-void drawHumidityStatus(uint startx, uint starty, DataPoint datapoint){
+void drawHumidityStatus(uint startx, uint starty, DhtDataPoint datapoint){
   drawHumidityStatus(startx, starty, !USE_DEWPOINT, datapoint);
 }
 
