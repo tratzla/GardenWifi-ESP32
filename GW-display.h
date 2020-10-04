@@ -1,15 +1,14 @@
 #ifndef GW_DISPLAY
 #define GW_DISPLAY
 
-#include "Arduino.h"
 #include "heltec.h"
 #include <WiFiMulti.h>
-#include "icons.h"
+#include "icons/icons.h"
 #include "font_dialog.h"
 #include "GW-datalog.h"
-// #include "GW-readsensortask.h"
 #include "GW-sensors.h"
 #include "battery.h"
+#include "GW-sleep.h"
 
 #define screen_width 128
 #define screen_height 64
@@ -23,8 +22,20 @@
 #define units_offset -8
 #define dew_offset -2
 
-bool USE_DEWPOINT = true;
 
+
+
+#define SCREEN_TT100_RH 1
+#define SCREEN_TT100_DP 2
+#define SCREEN_TT101_RH 3
+#define SCREEN_TT101_DP 4
+#define SCREEN_WIFI 5
+#define SCREEN_END 6
+#define SCREEN_GO_TO_SLEEP 7
+
+#define RETURN_TO_AUTOSCROLL 15000
+bool autoScroll = true;
+bool manScrollNext = false;
 
 void displayBattDebug(){
   Heltec.display->clear();
@@ -170,15 +181,12 @@ void drawHumidityStatus(uint startx, uint starty, bool use_dewpoint, DhtDataPoin
 
 // Humidity function for printing in RELATIVE HUMIDITY
 void drawHumidityStatus(uint startx, uint starty, DhtDataPoint datapoint){
-  drawHumidityStatus(startx, starty, !USE_DEWPOINT, datapoint);
+  drawHumidityStatus(startx, starty, false, datapoint);
 }
 
 void drawWifiStatus() {
   if (WiFi.status() == WL_CONNECTED) {
     drawSignalbars(WiFi.RSSI());
-    // Heltec.display->setFont(font_ipaddr);
-    // Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
-    // Heltec.display->drawString(screen_width/2, 0, WiFi.localIP().toString());
   } else {
     drawSignalbars(-100);
   }
@@ -210,6 +218,89 @@ void drawWifiSDetails() {
     Heltec.display->setFont(ArialMT_Plain_10);
     Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
     Heltec.display->drawString(wifiCentre, 44, WiFi.SSID());
+}
+
+
+void showSleepWarning(){
+    // String toPrint = String("Sleeping for"+ String(TIME_TO_SLEEP_S)+"s");
+    Heltec.display->setFont(Dialog_plain_14);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+    Heltec.display->drawString(screen_width/2, screen_height/2-14, "Sleeping for");
+    Heltec.display->drawString(screen_width/2, screen_height/2+7, String(TIME_TO_SLEEP_S)+"s");
+}
+
+
+
+
+
+
+
+void refreshDataDisplay() {
+  /* 
+  *REFRESH DISPLAY
+  * clear and re-write the display to show new data 
+  */
+  static uint screenSequence = 1;
+  if (shutdownFlag) screenSequence = SCREEN_GO_TO_SLEEP;
+  Heltec.display->clear();
+
+  drawWifiStatus();
+  drawBattery(battPercent);
+  
+  if (screenSequence == SCREEN_TT100_RH || screenSequence == SCREEN_TT100_DP) {
+
+    Heltec.display->setFont(ArialMT_Plain_10);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+    Heltec.display->drawString(screen_width/2, 0, "TT-100");
+    Heltec.display->drawString(screen_width-screen_width/4, 0, autoScroll?" A":" M");
+
+    drawTemperatureStatus(0, 16, TT100.getData());
+    drawTempIcon(TT100.state != SENSOR_IDLE);
+
+    if (screenSequence == SCREEN_TT100_DP) {
+      drawHumidityStatus(0, 40, true, TT100.getData());
+    } else {
+      drawHumidityStatus(0, 40, TT100.getData());
+    }
+    drawHumidityIcon(TT100.state != SENSOR_IDLE);
+  }
+  
+  if (screenSequence == SCREEN_TT101_RH || screenSequence == SCREEN_TT101_DP) {
+    Heltec.display->setFont(ArialMT_Plain_10);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+    Heltec.display->drawString(screen_width/2, 0, "TT-101");
+    Heltec.display->drawString(screen_width-screen_width/4, 0, autoScroll?" A":" M");
+    drawTemperatureStatus(0, 16, TT101.getData());
+    drawTempIcon(TT101.state != SENSOR_IDLE);
+
+    if (screenSequence == SCREEN_TT101_DP) {
+      drawHumidityStatus(0, 40, true, TT101.getData());
+    } else {
+      drawHumidityStatus(0, 40, TT101.getData());
+    }
+      drawHumidityIcon(TT101.state != SENSOR_IDLE);
+  }
+
+  if (screenSequence == SCREEN_WIFI) {
+    drawWifiSDetails();
+  }  
+  
+  if (screenSequence == SCREEN_GO_TO_SLEEP) {
+    showSleepWarning();
+  }
+
+  Heltec.display->display();
+
+  screenSequence++;
+  if (screenSequence == SCREEN_END) 
+      screenSequence = 1;
+}
+
+
+
+void initScreenSwitcher(){
+
+  autoScroll = true;
 }
 
 

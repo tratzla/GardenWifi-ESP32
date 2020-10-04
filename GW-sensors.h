@@ -12,6 +12,11 @@
 #define SENSOR_IDLE 0
 #define SENSOR_READING 1
 #define SENSOR_UPLOADING 2
+#define SENSOR_BUSY 3
+#define SENSOR_FAULT 4
+
+
+#define MIN_MOIST_ADC_READING 500
 
 /* DHT Sensor Item, including datalog */
 class DhtSensor {
@@ -62,16 +67,56 @@ DhtSensor TT100;
 #define tt101_pin 18
 DhtSensor TT101;
 
-struct DhtSensors {
-  const DhtSensor *sensors[2];
-};
 
 /* Soil Moisture Sensor Item, including datalog */
-// class SoilMoistSensorItem {
+
+/* DHT Sensor Item, including datalog */
+class MoistSensor {
+  public:
+    MoistDatalog log;
+    uint state;
+    int pin;
+    String name;
+    String strRepr;
+    String strStr;
+    const char *str() {
+      char buf[64];
+      sprintf(buf, "<%s [pin=%d len=%d]>", name, pin, log.len);
+      strStr = String(buf);
+      return strStr.c_str();
+    }
+    const char *repr() {
+      char buf[128];
+      MoistDataPoint point = log.getData();
+      sprintf(buf, "<%s [pin=%d len=%d] {M=%.1f|v=%.1f|r=%.1f|ts=%d}>",
+          name, pin, log.len,
+          point.moisture,
+          point.volts,
+          point.raw,
+          point.timestamp);
+      strRepr = String(buf);
+      return strRepr.c_str();
+    }
+
+    void init(const char *str, int pin){
+      name = String(str);
+      this->pin = pin;
+      state = SENSOR_IDLE;
+      Serial.printf("Starting Moist Sensor %s...", this->repr());
+      Serial.println("done.");
+    }
+    MoistSensor(){}
+    MoistDataPoint getData(){return log.getData();}
+    MoistDataPoint popData(){return log.popData();}
+    uint length(){return log.len;}
+};
 
 
-// };
+#define mt200_pin 35
+MoistSensor MT200;
 
+#define mt201_pin 34
+MoistSensor MT201;
 
 
 void initSensors() {
@@ -80,8 +125,75 @@ void initSensors() {
   TT101.init("TT-101", tt101_pin);
   initDhtBackgroundReaderTask(); // Will setup background task and put it to sleep
   Serial.println("  ...DHT Sensors initiated.");
+
+  MT200.init("MT-200", mt200_pin);
+  MT201.init("MT-201", mt201_pin);
+  Serial.println("  ...MOIST Sensors initiated.");
 }
 
+
+bool logMoistData(MoistSensor &sensor) {
+  if (sensor.state != SENSOR_IDLE) {
+    Serial.printf("\nSensor %s busy <%d>, log later.\n", sensor.str(), sensor.state);
+    return SENSOR_BUSY;
+  }
+  sensor.state = SENSOR_UPLOADING;
+  uint len = sensor.length();
+  for (int j=0;j<len;j++) {
+    MoistDataPoint dp = sensor.popData();
+    Point point(sensor.name);
+
+    point.addTag("name", sensor.name);
+    point.addTag("pin", String(sensor.pin));
+    point.addField("moisture", dp.moisture);
+    point.addField("volts", dp.volts);
+    point.addField("raw", dp.raw);
+
+    if (!writeNewPoint(point)) {
+      Serial.print("  InfluxDB write status failed: ");
+      Serial.println(getLastErrorMessage());
+      sensor.state = SENSOR_IDLE;
+      return false;
+    }
+  }
+  sensor.state = SENSOR_IDLE;
+  return true;
+}
+
+int getMoisture(MoistSensor &sensor){
+  if (sensor.state == SENSOR_UPLOADING) {
+    Serial.printf("\nSensor %s: Busy UPLOADING, read sensor later.\n", sensor.str());
+    return SENSOR_UPLOADING;
+  }
+  sensor.state = SENSOR_READING;
+
+  delay(15);
+  uint reading = analogRead(sensor.pin);
+
+  if (reading < MIN_MOIST_ADC_READING) {
+      Serial.printf("\nSensor %s: Problem Reading ANALOG INPUT. RAW=%d.\n", sensor.str(),reading);
+
+        sensor.state = SENSOR_IDLE;
+        return SENSOR_BUSY;
+  }
+  /* Heltec Docs thought this polynomial was more accurate. I can't confirm that */
+  double volts = -0.000000000000016 * pow(reading,4) + 0.000000000118171 * pow(reading,3)- 0.000000301211691 * pow(reading,2)+ 0.001109019271794 * reading + 0.034143524634089;
+  int imoist = map((int)(volts*1000), 955, 3100, 100000, 10000);
+  float moist = (float)imoist/1000.0;
+  sensor.log.newDp(moist, volts, reading);
+  // Serial.print( "\n    RAW     VOLTS      MOIST     \n");
+  // Serial.printf("   %d     %.2fV      %.1f%%           \n", reading, volts, moist);
+
+  Serial.printf("Sensor %s: READ data", sensor.repr());
+  sensor.state = SENSOR_IDLE;
+  if (logMoistData(sensor)) return SENSOR_IDLE;
+  return SENSOR_FAULT;
+}
+
+int getAllMoistures() {
+  getMoisture(MT200);
+  getMoisture(MT201);
+}
 
 
 int getDhtTemperature(DhtSensor &sensor) {
@@ -101,9 +213,9 @@ int getDhtTemperature(DhtSensor &sensor) {
     float dewpoint = sensor.dht.computeDewPoint(newValues.temperature, newValues.humidity);
     sensor.log.newDp(newValues.temperature, newValues.humidity, dewpoint);
 
-    Serial.printf("Sensor %s: Read and Saved data\n", sensor.repr());
+    Serial.printf("Sensor %s: Read data\n", sensor.repr());
     sensor.state = SENSOR_IDLE;
-    return 0;
+    return SENSOR_IDLE;
 }
 
 /* This function must be declared as is. This will get called by the
@@ -146,43 +258,6 @@ void queueSensorDataLogs() {
   logDhtData(TT101);
 }
 
-
-// void sendSensorDataToInflux(SensorInfo &sensor) {
-//   if (sensor.fetching) {
-//     Serial.printf("\nSensor %s busy READING, upload later.\n", sensor.str());
-//     return;
-//   }
-//   sensor.saving = true;
-//   Serial.printf("\nSending data from Sensor %s to Influx...\n", sensor.str());
-//   if (WiFi.status() != WL_CONNECTED) {
-//     Serial.println("...Wifi connection lost, can't send DATA to Influx.");
-//     sensor.saving = false;
-//     return;
-//   }
-//   if (sensor.len <= 0 ) {
-//     Serial.println("  ...sensor has no new data. Nothing to upload, done.");
-//     sensor.saving = false;
-//     return;
-//   }
-
-//   Point influxPoint(sensor.name);
-//   influxPoint.addTag("name", sensor.name);
-//   influxPoint.addTag("pin", String(sensor.pin));
-//   influxPoint.addField("temperature", sensor.data[sensor.i].temperature);
-//   influxPoint.addField("humidity", sensor.data[sensor.i].humidity);
-//   influxPoint.addField("dewpoint", sensor.data[sensor.i].dewpoint);
-//   Serial.print("writing to Influx: ");
-//   Serial.println(influxPoint.toLineProtocol());
-//   if (!writeNewPoint(influxPoint)) {
-//     Serial.print("  InfluxDB write status failed: ");
-//     Serial.println(getLastErrorMessage());
-//   } else {
-//     sensor.len--;
-//     sensor.i = sensor.i == 0 ? datalog_max_length - 1 : sensor.i - 1;
-//     Serial.println("  ...Success.\n");
-//   }  
-//   sensor.saving = false;      
-// }
 
 
 #endif

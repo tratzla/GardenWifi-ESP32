@@ -2,32 +2,31 @@
 #define GW_SLEEP
 
 #include <Arduino.h>
-#include "heltec.h"
-// #include "GW-touch.h"
+#include "GW-influx.h"
 
-#define TIME_TO_WAKE_MS 45000
-#define TIME_TO_SLEEP_S 30
+#define TIME_TO_WAKE_MS 30000
+#define TIME_TO_SLEEP_S 10
 #define SEC_TO_MICROS_SEC 1000000
 
-long naptime;
-initSleep() {
+ulong naptime;
+ulong now;
+bool shutdownFlag = false;
+
+void initSleep() {
   naptime = millis() + TIME_TO_WAKE_MS;
 }
 
 
-
 void goToDeepSleep() {
-  if(naptime < millis()) return;
-
-  //Wifi.end();
+  
 
   delay(100);
   esp_sleep_enable_touchpad_wakeup();
-  Serial.println("Enabled touch interrupt on TOUCH_PAD_NUM7 aka GPIO 27");
+  Serial.println("Enabled touch WAKEUP on TOUCH_PAD_NUM7(aka GPIO27)");
 
   delay(100);
-  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * SEC_TO_MICROS_SEC);
-  Serial.printf("\n\nSleep timer set at %d seconds\n", TIME_TO_SLEEP);
+  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP_S * SEC_TO_MICROS_SEC);
+  Serial.printf("\n\nSleep timer set at %d seconds\n", TIME_TO_SLEEP_S);
 
 
   delay(100);

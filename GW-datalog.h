@@ -34,7 +34,7 @@ class DhtDatalog {
     DhtDataPoint popData() {
       DhtDataPoint retval = data[i];
       len--;
-      i = i == 0 ? datalog_max_length - 1 : i - 1
+      i = i == 0 ? datalog_max_length - 1 : i - 1;
       return retval;
     }
 };
@@ -44,8 +44,38 @@ class DhtDatalog {
 struct MoistDataPoint {
   uint timestamp;
   float moisture;
+  float volts;
+  float raw;
 };
 
+struct MoistDatalog {
+  private:
+
+  public:
+    MoistDataPoint data[datalog_max_length];
+    uint i;
+    uint len;
+    MoistDatalog(){i=0;len=0;}
+    MoistDataPoint getData(){return data[i];}
+    
+    void newDp(float m, float v, float r) {
+      uint old_ts = data[i].timestamp;
+      i = ++i >= datalog_max_length ? 0 : i;
+      len = ++len >= datalog_max_length ? datalog_max_length : len;
+
+      data[i].moisture = m;
+      data[i].volts = v;
+      data[i].raw = r;
+      data[i].timestamp = old_ts + 1;
+    }
+
+    MoistDataPoint popData() {
+      MoistDataPoint retval = data[i];
+      len--;
+      i = i == 0 ? datalog_max_length - 1 : i - 1;
+      return retval;
+    }
+};
 
 
 #endif

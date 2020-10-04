@@ -1,27 +1,14 @@
 #include "Arduino.h"
 #include "heltec.h"
-#include "GW-sensors.h"
 #include "GW-display.h"
+#include "GW-sensors.h"
 #include "GW-wifi.h"
 #include "GW-influx.h"
-//#include "GW-readsensortask.h"
 #include "GW-datalog.h"
 #include "TickerScheduler.h"
 #include "battery.h"
 #include "GW-sleep.h"
 #include "GW-touch.h"
-
-
-
-#define SCREEN_TT100_RH 1
-#define SCREEN_TT100_DP 2
-#define SCREEN_TT101_RH 3
-#define SCREEN_TT101_DP 4
-#define SCREEN_WIFI 5
-
-#define SCREEN_END 6
-
-
 
 
 #define SCROLL_TASK 0
@@ -31,145 +18,102 @@
 #define READLOG_BATT_TASK 4
 #define DEEP_SLEEP_TASK 5
 #define CHK_TOUCH_TASK 6
+#define READLOG_MOIST_TASK 7
 #define RETURN_TO_AUTOSCROLL_TASK 10
 #define MANUAL_FASTSCROLL_TASK 11
 TickerScheduler ts(12);
 
 
 
-#define RETURN_TO_AUTOSCROLL 15000
-bool autoScroll = true;
-bool manScrollNext = false;
+long timeForAutoScroll;
 
 
-void goToDeepSleep();
 
-void startAutoScroll() {
-  ts.disable(MANUAL_FASTSCROLL_TASK);
-  ts.add(DEEP_SLEEP_TASK, 75000, [&](void *) { goToDeepSleep();}, nullptr, false);
-  ts.remove(RETURN_TO_AUTOSCROLL_TASK);
-  // ts.enable(DEEP_SLEEP_TASK);
-  autoScroll = true;
+
+/* Task that's scheduled to make screen choices */
+void scrollDisplay() {
+  if(timeForAutoScroll > millis()) {
+    ts.disable(MANUAL_FASTSCROLL_TASK);
+    autoScroll = true;
+    manScrollNext = false;
+  }
+  if (!autoScroll && !manScrollNext) return;
+  
+  refreshDataDisplay();
   manScrollNext = false;
 }
 
 
+void checkTouchInput() {
+  if (!pin27Touched) return;
 
-void scrollDisplay(){
-  if (!autoScroll && !manScrollNext) return;
-  if (manScrollNext) {
-    ts.remove(RETURN_TO_AUTOSCROLL_TASK);
-  }
-  refreshDataDisplay();
+  pin27Touched = false;
+  naptime = millis() + TIME_TO_WAKE_MS;
 
-  if (manScrollNext) {
-    ts.add(RETURN_TO_AUTOSCROLL_TASK, 10000, [&](void *) { startAutoScroll();}, nullptr, false);
-    manScrollNext = false;
+  if(autoScroll && manScrollNext) {
+    autoScroll = false;
+    manScrollNext = true;
+
+    timeForAutoScroll = millis() + RETURN_TO_AUTOSCROLL;
+    ts.enable(MANUAL_FASTSCROLL_TASK);
   }
 }
 
-void refreshDataDisplay() {
-  /* 
-  *REFRESH DISPLAY
-  * clear and re-write the display to show new data 
-  */
-  static uint screenSequence = 1;
+void getReadyForSleep(){
+  if(shutdownFlag) goToDeepSleep(); // If we've already prepped for sleep, actually do it now
 
-  //simulate(); // refresh values with random data
-  Heltec.display->clear();
+  now = millis();
+  if(naptime > now) return; // Not naptime yet
 
-  drawWifiStatus();
-  drawBattery(battPercent);
-  
-  if (screenSequence == SCREEN_TT100_RH || screenSequence == SCREEN_TT100_DP) {
+  Serial.printf("\nNaptime:%d > now:%d    Time to Sleep!\n", naptime, now);
 
-    Heltec.display->setFont(ArialMT_Plain_10);
-    Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
-    Heltec.display->drawString(screen_width/2, 0, "TT-100");
-    Heltec.display->drawString(screen_width/4, 0, autoScroll?" A":" M");
+  Serial.println("Stopping all tasks: ");
+  ts.disableAll();
+  shutdownFlag = true;
 
-    drawTemperatureStatus(0, 16, TT100.getData());
-    drawTempIcon(TT100.state != SENSOR_IDLE);
+  ts.enable(SCROLL_TASK); //Now with shutdownFlag, this displays warning
 
-    if (screenSequence == SCREEN_TT100_DP) {
-      drawHumidityStatus(0, 40, USE_DEWPOINT, TT100.getData());
-    } else {
-      drawHumidityStatus(0, 40, TT100.getData());
-    }
-    drawHumidityIcon(TT100.state != SENSOR_IDLE);
-  }
-  
-  if (screenSequence == SCREEN_TT101_RH || screenSequence == SCREEN_TT101_DP) {
-    Heltec.display->setFont(ArialMT_Plain_10);
-    Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
-    Heltec.display->drawString(screen_width/2, 0, "TT-101");
-    Heltec.display->drawString(screen_width/4, 0, autoScroll?" A":" M");
-    drawTemperatureStatus(0, 16, TT101.getData());
-    drawTempIcon(TT101.state != SENSOR_IDLE);
+  Serial.println("Flushing datalog buffer: ");
+  flushInfluxBuffer();
 
-    if (screenSequence == SCREEN_TT101_DP) {
-      drawHumidityStatus(0, 40, USE_DEWPOINT, TT101.getData());
-    } else {
-      drawHumidityStatus(0, 40, TT101.getData());
-    }
-      drawHumidityIcon(TT101.state != SENSOR_IDLE);
-  }
+  // Serial.println("Stopping Wifi: ");
+  //Wifi.end();
 
-  if (screenSequence == SCREEN_WIFI) {
-    drawWifiSDetails();
-  }
-
-  Heltec.display->display();
-
-  screenSequence++;
-  if (screenSequence == SCREEN_END) 
-      screenSequence = 1;
+  // Re-enable this task so we give another 5s for anything else to finish
+  ts.enable(DEEP_SLEEP_TASK);
 }
-
-
-
-
-
-
 
 
 void setup() {
   /* Check the reason for wakeup */
   print_wakeup_reason();
 
+  /* Initialize manufacturer libraries */
   Heltec.begin(true /*DisplayEnable Enable*/, false /*LoRa Disable*/, true /*Serial Enable*/);
 
-
+  /* Initialize Application parts */
   initializeGWDisplay();
+  initScreenSwitcher();
   initializeGWwifi(); // This will also initialize influx if wifi connection is succesful
   initBatteryMonitor();
   initSensors();
   initSleep();
   initTouchInput();
-
   delay(1500);
+  
 
-
-
-  delay(1500);
-  autoScroll = true;
-
-  ts.add(SCROLL_TASK,       3200, [&](void *) { scrollDisplay(); }, nullptr, false);
-  ts.add(LOG_WIFI_TASK,     6000, [&](void *) { logWifiStatus(); }, nullptr, false);
-  ts.add(READ_DHT_TASK,     2000, [&](void *) { readDhtSensors(); }, nullptr, false);
+  /* Schedule all the Application tasks */
+  ts.add(SCROLL_TASK,       3200, [&](void *) { scrollDisplay();       }, nullptr, false);
+  ts.add(LOG_WIFI_TASK,     6000, [&](void *) { logWifiStatus();       }, nullptr, false);
+  ts.add(READ_DHT_TASK,     2000, [&](void *) { readDhtSensors();      }, nullptr, false);
   ts.add(LOG_DHT_TASK,      3500, [&](void *) { queueSensorDataLogs(); }, nullptr, false);
-  ts.add(READLOG_BATT_TASK, 3600, [&](void *) { readLogBattery();}, nullptr, true);
-  ts.add(DEEP_SLEEP_TASK,   1000, [&](void *) { goToDeepSleep();}, nullptr, false);
-  ts.add(CHK_TOUCH_TASK,     250, [&](void *) { checkTouchInput();}, nullptr, false);
+  ts.add(READLOG_BATT_TASK, 3600, [&](void *) { readLogBattery();      }, nullptr, true );
+  ts.add(DEEP_SLEEP_TASK,   6000, [&](void *) { getReadyForSleep();    }, nullptr, false);
+  ts.add(CHK_TOUCH_TASK,     250, [&](void *) { checkTouchInput();     }, nullptr, false);
+  ts.add(READLOG_MOIST_TASK,2200, [&](void *) { getAllMoistures();     }, nullptr, true );
 
-
-
-  // ts.add(8,  1000, [&](void *) { printTouchVal();}, nullptr, false);
-  //ts.add(RETURN_TO_AUTOSCROLL_TASK, 10000, [&](void *) { startAutoScroll();}, nullptr, true);
   ts.add(MANUAL_FASTSCROLL_TASK, 350, [&](void *) { scrollDisplay(); }, nullptr, true);
-
   ts.disable(MANUAL_FASTSCROLL_TASK);
-  //ts.disable(RETURN_TO_AUTOSCROLL_TASK);
 
   delay(2500);
 

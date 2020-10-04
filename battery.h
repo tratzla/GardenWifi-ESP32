@@ -14,7 +14,6 @@
 #define GW_BATTERY
 
 #include <Arduino.h>
-#include <WiFiMulti.h>
 #include "GW-influx.h"
 
 #define MAXBATT 4200    // The default Lipo is 4200mv when the battery is fully charged.

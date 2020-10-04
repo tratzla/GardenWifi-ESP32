@@ -1,8 +1,6 @@
 #ifndef gw_influx
 #define gw_influx
 
-#include "Arduino.h"
-#include <WiFiMulti.h>
 #define DEVICE "ESP32"
 #include <InfluxDbClient.h>
 
@@ -16,5 +14,7 @@ void initializeGWinflux();
 bool writeNewPoint(Point point);
 
 String getLastErrorMessage();
+
+bool flushInfluxBuffer();
 
 #endif
