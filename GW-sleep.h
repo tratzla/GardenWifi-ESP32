@@ -3,14 +3,20 @@
 
 #include <Arduino.h>
 #include "GW-influx.h"
+#include "battery.h"
 
 #define TIME_TO_WAKE_MS 30000
 #define TIME_TO_SLEEP_S 10
 #define SEC_TO_MICROS_SEC 1000000
 
+#define SHTDN_NOSHUTDOWN 0
+#define SHTDN_INIT_SLEEP 1
+#define SHTDN_SLEEP_NOW  2
+#define SHTDN_LOW_BATT   4
+
 ulong naptime;
 ulong now;
-bool shutdownFlag = false;
+byte shutdownFlags = SHTDN_NOSHUTDOWN;
 
 void initSleep() {
   naptime = millis() + TIME_TO_WAKE_MS;
@@ -19,20 +25,28 @@ void initSleep() {
 
 void goToDeepSleep() {
   
+  if (lowBattFlag) {
+    Serial.println("[E] - LOW BATTERY detectec. Shutting DOWN!");
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_SLOW_MEM, ESP_PD_OPTION_OFF);
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_FAST_MEM, ESP_PD_OPTION_OFF);
+    esp_sleep_pd_config(ESP_PD_DOMAIN_XTAL, ESP_PD_OPTION_OFF);
+    esp_sleep_pd_config(ESP_PD_DOMAIN_MAX, ESP_PD_OPTION_OFF);
 
-  delay(100);
-  esp_sleep_enable_touchpad_wakeup();
-  Serial.println("Enabled touch WAKEUP on TOUCH_PAD_NUM7(aka GPIO27)");
+  } else {
+    delay(100);
+    esp_sleep_enable_touchpad_wakeup();
+    Serial.println("Enabled touch WAKEUP on TOUCH_PAD_NUM7(aka GPIO27)");
 
-  delay(100);
-  gpio_hold_en(GPIO_NUM_12);
-  gpio_hold_en(GPIO_NUM_13);
-  gpio_deep_sleep_hold_en();
+    delay(100);
+    gpio_hold_en(GPIO_NUM_12);
+    gpio_hold_en(GPIO_NUM_13);
+    gpio_deep_sleep_hold_en();
 
-  delay(100);
-  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP_S * SEC_TO_MICROS_SEC);
-  Serial.printf("\n\nSleep timer set at %d seconds\n", TIME_TO_SLEEP_S);
-
+    delay(100);
+    esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP_S * SEC_TO_MICROS_SEC);
+    Serial.printf("\n\nSleep timer set at %d seconds\n", TIME_TO_SLEEP_S);
+  }
 
   delay(100);
   Serial.println("Going to DEEP sleep now!");

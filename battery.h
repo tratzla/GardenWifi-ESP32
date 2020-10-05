@@ -16,20 +16,22 @@
 #include <Arduino.h>
 #include "GW-influx.h"
 
-#define MAXBATT 4200    // The default Lipo is 4200mv when the battery is fully charged.
-#define MINBATT 3200    // The default Lipo is 3200mv when the battery is empty...this WILL be low on the 3.3v rail specs!
+#define MAXBATT 4200            // The default Lipo is 4200mv when the battery is fully charged.
+#define MINBATT 3200            // The default Lipo is 3200mv when the battery is empty...this WILL be low on the 3.3v rail specs!
+#define SHUTDOWN_BATT_V 3.25    // Voltage at which we will go permanently into deep sleep 3.25V
 #define VOLTAGE_DIVIDER 3.20    // Board has 220k/100k voltage divider
-#define VBATT_SAMPLE 500     // Battery sample rate in ms
-#define VBATT_SMOOTH 50      // Number of averages in sample
-#define ADC_READ_STABILIZE 5       // in ms (delay from GPIO control and ADC connections times)
-#define VEXT_GPIO 21      // Heltec GPIO to toggle Vext off and allow VBatt read connection
-#define VBATT_GPIO 37 // Heltec GPIO for reading Vbatt on wifi kit 32
+#define VBATT_SAMPLE 500        // Battery sample rate in ms
+#define VBATT_SMOOTH 50         // Number of averages in sample
+#define ADC_READ_STABILIZE 5    // in ms (delay from GPIO control and ADC connections times)
+#define VEXT_GPIO 21            // Heltec GPIO to toggle Vext off and allow VBatt read connection
+#define VBATT_GPIO 37           // Heltec GPIO for reading Vbatt on wifi kit 32
 
 
 #define FUDGE_OFFSET -475
 Point battStatusInflux("Battery_Status");
 float battVoltage = 0;
 int   battPercent = 0;
+bool lowBattFlag = false;
 
 
 int calcBattPercent(float v){
@@ -39,13 +41,13 @@ int calcBattPercent(float v){
   if (v>3.60) p = 20;
   if (v>3.65) p = 30;
   if (v>3.70) p = 40;
-  if (v>3.75) p = 50;
-  if (v>3.80) p = 60;
-  if (v>3.85) p = 70;
-  if (v>3.90) p = 80;
-  if (v>4.05) p = 90;
-  if (v>4.10) p = 100;
-  if (v>4.15) p = 101;
+  if (v>3.74) p = 50;
+  if (v>3.79) p = 60;
+  if (v>3.83) p = 70;
+  if (v>3.88) p = 80;
+  if (v>3.92) p = 90;
+  if (v>3.95) p = 100;
+  if (v>4.10) p = 101;
   return p;
 }
 
@@ -128,6 +130,8 @@ void readLogBattery()
   battPercent = calcBattPercent(battVoltage);
   sendBatteryToInflux();
 
+  if(battVoltage < SHUTDOWN_BATT_V)
+    lowBattFlag = true;
 }
 
 

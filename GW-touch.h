@@ -2,25 +2,19 @@
 #define GW_TOUCH
 
 
+#define TOUCH6_AKA_GPIO14 14
 #define TOUCH7_AKA_GPIO27 27
-#define TOUCH_THRESHOLD 40 /* 40 for Arduino(150 for ESP) Larger is more sensetive */
+#define TOUCH_THRESHOLD 25 /* 40 for Arduino(150 for ESP) Larger is more sensetive */
 
-bool pin27Touched = true;
 
-void touch_callback() {
-  // Serial.println("! OH! You touched me on the GPIO 27! <touch_callback>");
-  //   manScrollNext = true; 
-  pin27Touched = true;
-}
 
 
 
 void printTouchVal() {
-  Serial.printf("\n==| Touch: %d |==\n\n", touchRead(TOUCH7_AKA_GPIO27));
+  Serial.printf("\n==| TOUCH7_AKA_GPIO27: %d |==\n\n", touchRead(TOUCH7_AKA_GPIO27));
+  Serial.printf("\n==| TOUCH6_AKA_GPIO14: %d |==\n\n", touchRead(TOUCH6_AKA_GPIO14));
 }
 
-void initTouchInput() {
-  touchAttachInterrupt(TOUCH7_AKA_GPIO27, touch_callback, TOUCH_THRESHOLD);
-}
+
 
 #endif

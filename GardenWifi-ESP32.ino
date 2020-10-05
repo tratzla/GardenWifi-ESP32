@@ -9,6 +9,10 @@
 #include "battery.h"
 #include "GW-sleep.h"
 #include "GW-touch.h"
+#include "GW-menu.h"
+
+// #define _dbg_en 1
+// #include "GW-header.h"
 
 
 #define SCROLL_TASK 0
@@ -22,41 +26,78 @@
 #define CHK_ALARMS_TASK 8
 #define RETURN_TO_AUTOSCROLL_TASK 10
 #define MANUAL_FASTSCROLL_TASK 11
+
+static const char* TAG = "Main";
+
 TickerScheduler ts(12);
-
-
-
 long timeForAutoScroll;
 
 
+bool inputSelTouched;
+bool inputCtlTouched;
 
+void touch27_callback() {
+  inputSelTouched = true;
+}
+
+void touch14_callback() {
+  inputCtlTouched = true;
+}
 
 /* Task that's scheduled to make screen choices */
 void scrollDisplay() {
-  if(timeForAutoScroll > millis()) {
+  ulong now = millis();
+  if( now > timeForAutoScroll) {
     ts.disable(MANUAL_FASTSCROLL_TASK);
     autoScroll = true;
     manScrollNext = false;
   }
-  if (!autoScroll && !manScrollNext) return;
+
+  if (!autoScroll && !manScrollNext) {return;}
   
   refreshDataDisplay();
+  // refreshMenuDisplay();
   manScrollNext = false;
 }
 
 void checkTouchInput() {
-  if (!pin27Touched) return;
 
-  pin27Touched = false;
+  if (inputSelTouched){
+    if (menuControl & MENU_CTL_SELECT == 0) {
+      menuControl |= MENU_CTL_SELECT;
+      Serial.println("New User Touched 'Select'");
+    } else {
+      Serial.println("Double read?'");
+      inputSelTouched = false;
+    }
+  } else {
+    if(menuControl & MENU_CTL_SELECT != 0) {
+      Serial.println("Odd. already reset? or too fast to reset touch?");
+    }
+  }
+  
+
+  if(inputCtlTouched && !(menuControl & MENU_CTL_CHANGE == 0)) {
+    menuControl |= MENU_CTL_CHANGE;
+    Serial.println("User Touched 'Control'");
+
+  } else {return;}
+  // printTouchVal();
+
+  Serial.printf("   menuControl=%d, inputSelTouched=%d  inputCtlTouched=%d\n\n ",menuControl,inputSelTouched,inputCtlTouched );
   naptime = millis() + TIME_TO_WAKE_MS;
+  timeForAutoScroll = millis() + RETURN_TO_AUTOSCROLL;
+  manScrollNext = true;
 
-  if(autoScroll && manScrollNext) {
+  if(autoScroll) {
     autoScroll = false;
-    manScrollNext = true;
-
-    timeForAutoScroll = millis() + RETURN_TO_AUTOSCROLL;
     ts.enable(MANUAL_FASTSCROLL_TASK);
   }
+    inputCtlTouched = 0;
+    inputSelTouched = 0;
+
+
+
 }
 
 
@@ -101,7 +142,7 @@ void loadAlarmData(){
   pinMode(13, OUTPUT);
 
   if ( esp_reset_reason() == ESP_RST_DEEPSLEEP) {
-    Serial.println("Looks like we just woke up from sleep. Try to load alarm data");
+    Serial.print("Looks like we just woke up from sleep. Try to load alarm data");
     if(TT100.alarm.in_use) TT100.alarm.loadFromRTC(rtcTT100);
     if(TT101.alarm.in_use) TT101.alarm.loadFromRTC(rtcTT101);
     if(MT200.alarm.in_use) MT200.alarm.loadFromRTC(rtcMT200);
@@ -125,23 +166,24 @@ void saveAlarmData(){
 
 
 void getReadyForSleep(){
-  if(shutdownFlag) goToDeepSleep(); // If we've already prepped for sleep, actually do it now
+  if(shutdownFlags) 
+    goToDeepSleep(); // If we've already prepped for sleep, actually do it now
 
   now = millis();
   if(naptime > now) return; // Not naptime yet
 
   Serial.printf("\nNaptime:%d > now:%d    Time to Sleep!\n", naptime, now);
 
-  Serial.println("Stopping all tasks: ");
+  Serial.print("Stopping all tasks: ");
   ts.disableAll();
-  shutdownFlag = true;
+  shutdownFlags |= SHTDN_SLEEP_NOW;
 
   ts.enable(SCROLL_TASK); //Now with shutdownFlag, this displays warning
 
-  Serial.println("Flushing datalog buffer: ");
+  Serial.print("Flushing datalog buffer: ");
   flushInfluxBuffer();
 
-  // Serial.println("Stopping Wifi: ");
+  Serial.print("Stopping Wifi: ");
   //Wifi.end();
 
   //backup alarm states to RTC
@@ -151,6 +193,12 @@ void getReadyForSleep(){
   ts.enable(DEEP_SLEEP_TASK);
 }
 
+void initTouchInput() {
+  inputSelTouched = false;
+  inputCtlTouched = false;
+  touchAttachInterrupt(TOUCH7_AKA_GPIO27, touch27_callback, TOUCH_THRESHOLD);
+  touchAttachInterrupt(TOUCH6_AKA_GPIO14, touch14_callback, TOUCH_THRESHOLD);
+}
 
 void setup() {
   /* Check the reason for wakeup */
@@ -158,6 +206,7 @@ void setup() {
 
   /* Initialize manufacturer libraries */
   Heltec.begin(true /*DisplayEnable Enable*/, false /*LoRa Disable*/, true /*Serial Enable*/);
+
 
   /* Initialize Application parts */
   initializeGWDisplay();
@@ -179,21 +228,20 @@ void setup() {
   ts.add(CHK_ALARMS_TASK,   2500, [&](void *) { checkAlarmActions();   }, nullptr, true );
   ts.add(READLOG_BATT_TASK, 3600, [&](void *) { readLogBattery();      }, nullptr, true );
   ts.add(DEEP_SLEEP_TASK,   6000, [&](void *) { getReadyForSleep();    }, nullptr, false);
-  ts.add(CHK_TOUCH_TASK,     250, [&](void *) { checkTouchInput();     }, nullptr, false);
+  ts.add(CHK_TOUCH_TASK,     500, [&](void *) { checkTouchInput();     }, nullptr, false);
   ts.add(READLOG_MOIST_TASK,2200, [&](void *) { getAllMoistures();     }, nullptr, true );
 
   ts.add(MANUAL_FASTSCROLL_TASK, 350, [&](void *) { scrollDisplay(); }, nullptr, true);
   ts.disable(MANUAL_FASTSCROLL_TASK);
 
-  delay(2500);
+  delay(500);
 
   readingTaskEnabled = true;
-  Serial.println("Done Setup!\n");
+  Serial.print("Done Setup!\n");
 }
 
 void loop() {
 
-
   ts.update();
-}
 
+}

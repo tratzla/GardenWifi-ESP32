@@ -34,14 +34,24 @@ class alarm_config {
     alarm_states state;
     bool in_use = false;
     String strStr;
-  
+    String strSte;
+    String strCmp;
+
+    const char *charCompare() {
+      strCmp = String(compare==gt?"> [gt]": compare==lt?"< [lt]":"= [eq]");
+      return strCmp.c_str();
+    }
+
+    const char *strState(){
+      strSte = String(state==NORMAL?"OK": state==ALARM?"ALARM": "?");
+      return strSte.c_str();
+    }
+
     const char *str() {
       if (!this->in_use) return "";
       char buf[32];
       sprintf(buf, " [ALM:=%s%.1f|%s]", 
-        compare==gt?">": compare==lt?"<":"==", 
-        sp, 
-        state==NORMAL?"OK": state==ALARM?"ALARM": "?");
+          charCompare(), sp, strState());
       strStr = String(buf);
       return strStr.c_str();
     }

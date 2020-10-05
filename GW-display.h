@@ -225,8 +225,15 @@ void showSleepWarning(){
     // String toPrint = String("Sleeping for"+ String(TIME_TO_SLEEP_S)+"s");
     Heltec.display->setFont(Dialog_plain_14);
     Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
-    Heltec.display->drawString(screen_width/2, screen_height/2-14, "Sleeping for");
-    Heltec.display->drawString(screen_width/2, screen_height/2+7, String(TIME_TO_SLEEP_S)+"s");
+    Heltec.display->drawString(screen_width/2, screen_height/2-14, "Sleeping NOW!");
+    if(shutdownFlags && lowBattFlag) {
+      Heltec.display->drawString(screen_width/2, screen_height/2+7, 
+          "LOW BATT!");
+    } else {
+      Heltec.display->setFont(ArialMT_Plain_10);
+      Heltec.display->drawString(screen_width/2, screen_height/2+7, 
+          "Wake in " + String(TIME_TO_SLEEP_S)+"s");
+    }
 }
 
 
@@ -241,7 +248,7 @@ void refreshDataDisplay() {
   * clear and re-write the display to show new data 
   */
   static uint screenSequence = 1;
-  if (shutdownFlag) screenSequence = SCREEN_GO_TO_SLEEP;
+  if (shutdownFlags) screenSequence = SCREEN_GO_TO_SLEEP;
   Heltec.display->clear();
 
   drawWifiStatus();
@@ -305,7 +312,7 @@ void initScreenSwitcher(){
 
 
 void initializeGWDisplay(){
-  Heltec.display->flipScreenVertically();
+  // Heltec.display->flipScreenVertically();
   Heltec.display->setFont(ArialMT_Plain_10);
 }
 
