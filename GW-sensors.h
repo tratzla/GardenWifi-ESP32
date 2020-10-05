@@ -23,6 +23,8 @@ class DhtSensor {
   public:
     DhtDatalog log;
     DHTesp dht;
+    alarm_config alarm;
+
     uint state;
     int pin;
     String name;
@@ -37,8 +39,8 @@ class DhtSensor {
     const char *repr() {
       char buf[128];
       DhtDataPoint point = log.getData();
-      sprintf(buf, "<%s [pin=%d len=%d] {T=%.1f|H=%.1f|D=%.1f|ts=%d}>",
-          name, pin, log.len,
+      sprintf(buf, "<%s%s [pin=%d len=%d] {T=%.1f|H=%.1f|D=%.1f|ts=%d}>",
+          name, alarm.str(),pin, log.len,
           point.temperature, 
           point.humidity, 
           point.dewpoint,
@@ -47,6 +49,13 @@ class DhtSensor {
       return strRepr.c_str();
     }
 
+    bool configureAlarm(compare_type comp, float sp){
+      alarm.sp = sp;
+      alarm.i = 0;
+      alarm.len = 0;
+      alarm.compare = comp;
+      alarm.in_use = true;
+    }
     void init(const char *str, int pin){
       name = String(str);
       this->pin = pin;
@@ -56,6 +65,10 @@ class DhtSensor {
       Serial.println("done.");
     }
     DhtSensor(){}
+    void newDp(float t, float h, float d) {
+      log.newDp(t,h,d);
+      if (alarm.in_use) alarm.newDp(t);
+    }
     DhtDataPoint getData(){return log.getData();}
     DhtDataPoint popData(){return log.popData();}
     uint length(){return log.len;}
@@ -68,12 +81,15 @@ DhtSensor TT100;
 DhtSensor TT101;
 
 
-/* Soil Moisture Sensor Item, including datalog */
 
-/* DHT Sensor Item, including datalog */
+
+
+/* Soil Moisture Sensor Item, including datalog */
 class MoistSensor {
   public:
     MoistDatalog log;
+    alarm_config alarm;
+
     uint state;
     int pin;
     String name;
@@ -88,8 +104,9 @@ class MoistSensor {
     const char *repr() {
       char buf[128];
       MoistDataPoint point = log.getData();
-      sprintf(buf, "<%s [pin=%d len=%d] {M=%.1f|v=%.1f|r=%.1f|ts=%d}>",
-          name, pin, log.len,
+      sprintf(buf, "<%s%s [pin=%d len=%d] {M=%.1f|v=%.1f|r=%.1f|ts=%d}>",
+          name, alarm.str(), pin, log.len,
+
           point.moisture,
           point.volts,
           point.raw,
@@ -97,7 +114,13 @@ class MoistSensor {
       strRepr = String(buf);
       return strRepr.c_str();
     }
-
+    bool configureAlarm(compare_type comp, float sp){
+      alarm.sp = sp;
+      alarm.i = 0;
+      alarm.len = 0;
+      alarm.compare = comp;
+      alarm.in_use = true;
+    }
     void init(const char *str, int pin){
       name = String(str);
       this->pin = pin;
@@ -105,11 +128,32 @@ class MoistSensor {
       Serial.printf("Starting Moist Sensor %s...", this->repr());
       Serial.println("done.");
     }
+
     MoistSensor(){}
+    void newDp(float m, float v, float r) {
+      log.newDp(m,v,r);
+      if (alarm.in_use) alarm.newDp(m);
+    }
     MoistDataPoint getData(){return log.getData();}
     MoistDataPoint popData(){return log.popData();}
     uint length(){return log.len;}
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #define mt200_pin 35
@@ -123,11 +167,18 @@ void initSensors() {
   Serial.println("Starting Sensors...");
   TT100.init("TT-100", tt100_pin);
   TT101.init("TT-101", tt101_pin);
+
+
+
   initDhtBackgroundReaderTask(); // Will setup background task and put it to sleep
   Serial.println("  ...DHT Sensors initiated.");
 
+
+
   MT200.init("MT-200", mt200_pin);
   MT201.init("MT-201", mt201_pin);
+
+
   Serial.println("  ...MOIST Sensors initiated.");
 }
 
@@ -149,6 +200,12 @@ bool logMoistData(MoistSensor &sensor) {
     point.addField("volts", dp.volts);
     point.addField("raw", dp.raw);
 
+    if (sensor.alarm.in_use) {
+      point.addField("alm_SP", sensor.alarm.sp);
+      point.addField("alm_COMP", sensor.alarm.compare);
+      point.addField("alm_STATE", sensor.alarm.state);
+    }
+
     if (!writeNewPoint(point)) {
       Serial.print("  InfluxDB write status failed: ");
       Serial.println(getLastErrorMessage());
@@ -156,6 +213,7 @@ bool logMoistData(MoistSensor &sensor) {
       return false;
     }
   }
+  Serial.println("  Data QUEUED for upload");
   sensor.state = SENSOR_IDLE;
   return true;
 }
@@ -180,11 +238,11 @@ int getMoisture(MoistSensor &sensor){
   double volts = -0.000000000000016 * pow(reading,4) + 0.000000000118171 * pow(reading,3)- 0.000000301211691 * pow(reading,2)+ 0.001109019271794 * reading + 0.034143524634089;
   int imoist = map((int)(volts*1000), 955, 3100, 100000, 10000);
   float moist = (float)imoist/1000.0;
-  sensor.log.newDp(moist, volts, reading);
+  sensor.newDp(moist, volts, reading);
   // Serial.print( "\n    RAW     VOLTS      MOIST     \n");
   // Serial.printf("   %d     %.2fV      %.1f%%           \n", reading, volts, moist);
 
-  Serial.printf("Sensor %s: READ data", sensor.repr());
+  Serial.printf("Sensor %s: READ data ", sensor.repr());
   sensor.state = SENSOR_IDLE;
   if (logMoistData(sensor)) return SENSOR_IDLE;
   return SENSOR_FAULT;
@@ -211,7 +269,7 @@ int getDhtTemperature(DhtSensor &sensor) {
         return sensor.dht.getStatus();
     }
     float dewpoint = sensor.dht.computeDewPoint(newValues.temperature, newValues.humidity);
-    sensor.log.newDp(newValues.temperature, newValues.humidity, dewpoint);
+    sensor.newDp(newValues.temperature, newValues.humidity, dewpoint);
 
     Serial.printf("Sensor %s: Read data\n", sensor.repr());
     sensor.state = SENSOR_IDLE;
@@ -244,6 +302,12 @@ void logDhtData(DhtSensor &sensor) {
     point.addField("temperature", dp.temperature);
     point.addField("humidity", dp.humidity);
     point.addField("dewpoint", dp.dewpoint);
+
+    if (sensor.alarm.in_use) {
+      point.addField("alm_SP", sensor.alarm.sp);
+      point.addField("alm_COMP", sensor.alarm.compare);
+      point.addField("alm_STATE", sensor.alarm.state);
+    }
 
     if (!writeNewPoint(point)) {
       Serial.print("  InfluxDB write status failed: ");

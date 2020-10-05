@@ -25,6 +25,11 @@ void goToDeepSleep() {
   Serial.println("Enabled touch WAKEUP on TOUCH_PAD_NUM7(aka GPIO27)");
 
   delay(100);
+  gpio_hold_en(GPIO_NUM_12);
+  gpio_hold_en(GPIO_NUM_13);
+  gpio_deep_sleep_hold_en();
+
+  delay(100);
   esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP_S * SEC_TO_MICROS_SEC);
   Serial.printf("\n\nSleep timer set at %d seconds\n", TIME_TO_SLEEP_S);
 

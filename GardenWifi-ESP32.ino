@@ -19,6 +19,7 @@
 #define DEEP_SLEEP_TASK 5
 #define CHK_TOUCH_TASK 6
 #define READLOG_MOIST_TASK 7
+#define CHK_ALARMS_TASK 8
 #define RETURN_TO_AUTOSCROLL_TASK 10
 #define MANUAL_FASTSCROLL_TASK 11
 TickerScheduler ts(12);
@@ -43,7 +44,6 @@ void scrollDisplay() {
   manScrollNext = false;
 }
 
-
 void checkTouchInput() {
   if (!pin27Touched) return;
 
@@ -58,6 +58,71 @@ void checkTouchInput() {
     ts.enable(MANUAL_FASTSCROLL_TASK);
   }
 }
+
+
+/*
+ * ALARMING
+ * Some simple alarming action. Nothing fancy
+ * this should be improved. Also manually save  
+ *  and load alarm data to RTC memory.
+ */
+void checkAlarmActions(){
+  if( TT100.alarm.state == ALARM || 
+      TT101.alarm.state == ALARM   ) {
+        digitalWrite(13, HIGH);
+  } else {
+        digitalWrite(13, LOW);
+  }
+
+  if( MT200.alarm.state == ALARM || 
+      MT201.alarm.state == ALARM   ) {
+        digitalWrite(12, HIGH);
+  } else {
+        digitalWrite(12, LOW);
+  }
+
+}
+
+/* We will try to save and restore alarm SP, 
+ * State, Data, Output through deepsleeps using RTC
+ */
+RTC_DATA_ATTR persist_alm rtcTT100;
+RTC_DATA_ATTR persist_alm rtcTT101;
+RTC_DATA_ATTR persist_alm rtcMT200;
+RTC_DATA_ATTR persist_alm rtcMT201;
+void loadAlarmData(){
+
+  MT200.configureAlarm(gt, 60);
+  MT201.configureAlarm(gt, 65);
+  TT100.configureAlarm(lt, 26);
+  TT101.configureAlarm(lt, 20);
+
+  pinMode(12, OUTPUT);
+  pinMode(13, OUTPUT);
+
+  if ( esp_reset_reason() == ESP_RST_DEEPSLEEP) {
+    Serial.println("Looks like we just woke up from sleep. Try to load alarm data");
+    if(TT100.alarm.in_use) TT100.alarm.loadFromRTC(rtcTT100);
+    if(TT101.alarm.in_use) TT101.alarm.loadFromRTC(rtcTT101);
+    if(MT200.alarm.in_use) MT200.alarm.loadFromRTC(rtcMT200);
+    if(MT201.alarm.in_use) MT201.alarm.loadFromRTC(rtcMT201);
+    
+    checkAlarmActions();
+    gpio_hold_dis(GPIO_NUM_12);
+    gpio_hold_dis(GPIO_NUM_13);
+  }
+  
+}
+void saveAlarmData(){
+  if(TT100.alarm.in_use) TT100.alarm.copyToRTC(rtcTT100);
+  if(TT101.alarm.in_use) TT101.alarm.copyToRTC(rtcTT101);
+  if(MT200.alarm.in_use) MT200.alarm.copyToRTC(rtcMT200);
+  if(MT201.alarm.in_use) MT201.alarm.copyToRTC(rtcMT201);
+}
+/**********************/
+
+
+
 
 void getReadyForSleep(){
   if(shutdownFlag) goToDeepSleep(); // If we've already prepped for sleep, actually do it now
@@ -79,6 +144,9 @@ void getReadyForSleep(){
   // Serial.println("Stopping Wifi: ");
   //Wifi.end();
 
+  //backup alarm states to RTC
+  saveAlarmData();
+
   // Re-enable this task so we give another 5s for anything else to finish
   ts.enable(DEEP_SLEEP_TASK);
 }
@@ -97,6 +165,7 @@ void setup() {
   initializeGWwifi(); // This will also initialize influx if wifi connection is succesful
   initBatteryMonitor();
   initSensors();
+  loadAlarmData();
   initSleep();
   initTouchInput();
   delay(1500);
@@ -107,6 +176,7 @@ void setup() {
   ts.add(LOG_WIFI_TASK,     6000, [&](void *) { logWifiStatus();       }, nullptr, false);
   ts.add(READ_DHT_TASK,     2000, [&](void *) { readDhtSensors();      }, nullptr, false);
   ts.add(LOG_DHT_TASK,      3500, [&](void *) { queueSensorDataLogs(); }, nullptr, false);
+  ts.add(CHK_ALARMS_TASK,   2500, [&](void *) { checkAlarmActions();   }, nullptr, true );
   ts.add(READLOG_BATT_TASK, 3600, [&](void *) { readLogBattery();      }, nullptr, true );
   ts.add(DEEP_SLEEP_TASK,   6000, [&](void *) { getReadyForSleep();    }, nullptr, false);
   ts.add(CHK_TOUCH_TASK,     250, [&](void *) { checkTouchInput();     }, nullptr, false);
