@@ -29,7 +29,7 @@ void initSleep() {
 void goToDeepSleep() {
   
   if (lowBattFlag) {
-    Serial.println("[E] - LOW BATTERY detectec. Shutting DOWN!");
+    log_e("[E] - LOW BATTERY detectec. Shutting DOWN!");
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_SLOW_MEM, ESP_PD_OPTION_OFF);
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_FAST_MEM, ESP_PD_OPTION_OFF);
@@ -39,7 +39,7 @@ void goToDeepSleep() {
   } else {
     delay(100);
     esp_sleep_enable_touchpad_wakeup();
-    Serial.println("Enabled touch WAKEUP on TOUCH_PAD_NUM7(aka GPIO27)");
+    log_i("Enabled touch WAKEUP on TOUCH_PAD_NUM7(aka GPIO27)");
 
     delay(100);
     gpio_hold_en(GPIO_NUM_12);
@@ -48,14 +48,13 @@ void goToDeepSleep() {
 
     delay(100);
     esp_sleep_enable_timer_wakeup(TIME_SLEEPING * MIN_TO_MICROS_SEC);
-    Serial.printf("\n\nSleep timer set at %d minutes\n", TIME_SLEEPING);
+    log_i("\n\nSleep timer set at %d minutes\n", TIME_SLEEPING);
   }
 
   delay(100);
-  Serial.println("Going to DEEP sleep now!");
+  log_i("Going to DEEP sleep now!");
   delay(2);
   esp_deep_sleep_start();
-  Serial.println("!!!This will never be printed");
 }
 
 
@@ -67,17 +66,17 @@ void print_wakeup_touchpad(){
 
   switch(pin)
   {
-    case 0  : Serial.println("!Touch detected on GPIO 4"); break;
-    case 1  : Serial.println("!Touch detected on GPIO 0"); break;
-    case 2  : Serial.println("!Touch detected on GPIO 2"); break;
-    case 3  : Serial.println("!Touch detected on GPIO 15"); break;
-    case 4  : Serial.println("!Touch detected on GPIO 13"); break;
-    case 5  : Serial.println("!Touch detected on GPIO 12"); break;
-    case 6  : Serial.println("!Touch detected on GPIO 14"); break;
-    case 7  : Serial.println("!Touch detected on GPIO 27"); break;
-    case 8  : Serial.println("!Touch detected on GPIO 33"); break;
-    case 9  : Serial.println("!Touch detected on GPIO 32"); break;
-    default : Serial.println("!Wakeup not by touchpad"); break;
+    case 0  : log_i("!Touch detected on GPIO 4"); break;
+    case 1  : log_i("!Touch detected on GPIO 0"); break;
+    case 2  : log_i("!Touch detected on GPIO 2"); break;
+    case 3  : log_i("!Touch detected on GPIO 15"); break;
+    case 4  : log_i("!Touch detected on GPIO 13"); break;
+    case 5  : log_i("!Touch detected on GPIO 12"); break;
+    case 6  : log_i("!Touch detected on GPIO 14"); break;
+    case 7  : log_i("!Touch detected on GPIO 27"); break;
+    case 8  : log_i("!Touch detected on GPIO 33"); break;
+    case 9  : log_i("!Touch detected on GPIO 32"); break;
+    default : log_i("!Wakeup not by touchpad"); break;
   }
 }
 
@@ -92,23 +91,23 @@ void print_wakeup_reason(){
 
    switch(wakeup_reason)  {
     case ESP_SLEEP_WAKEUP_EXT0 : 
-        Serial.println("Wakeup caused by external signal using RTC_IO"); 
+        log_i("Wakeup caused by external signal using RTC_IO"); 
         break;
     case ESP_SLEEP_WAKEUP_EXT1 : 
-        Serial.println("Wakeup caused by external signal using RTC_CNTL"); 
+        log_i("Wakeup caused by external signal using RTC_CNTL"); 
         break;
     case ESP_SLEEP_WAKEUP_TIMER : 
-        Serial.println("Wakeup caused by timer"); 
+        log_i("Wakeup caused by timer"); 
         break;
     case ESP_SLEEP_WAKEUP_TOUCHPAD : 
-        Serial.print("!\n!Wakeup caused by touchpad.   Hello There!\n!..."); 
+        log_i("!\n!Wakeup caused by touchpad.   Hello There!\n!..."); 
         print_wakeup_touchpad();
         break;
     case ESP_SLEEP_WAKEUP_ULP : 
-        Serial.println("Wakeup caused by ULP program"); 
+        log_i("Wakeup caused by ULP program"); 
         break;
     default : 
-        Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); 
+        log_i("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); 
         break;
   }
 }

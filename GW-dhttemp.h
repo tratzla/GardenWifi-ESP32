@@ -17,7 +17,7 @@ void readDhtSensors(); //Will wake the CPU core for reading DHT sensors
 
 
 void taskReadOnSecondCore(void *pvParameters) {
-  Serial.println("Sensor reading Task initiated.");
+  log_i("Sensor reading Task initiated.");
   while (1) // tempTask loop
   {
     if (readingTaskEnabled) {
@@ -45,7 +45,7 @@ bool initDhtBackgroundReaderTask() {
       0);                             /* Core where the task should run */
 
   if (tempTaskHandle == NULL) {
-    Serial.println("Failed to start task for temperature update");
+    log_e("Failed to start task for temperature update");
     return false;
   }
   return true;

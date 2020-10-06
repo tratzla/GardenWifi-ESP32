@@ -157,7 +157,7 @@ void refreshMenuDisplay() {
    * Reading Buttons for user input
   */
   if(ButtonPressed_Both) {
-    // Serial.printf("ui=%d  B=%d S=%b C=%d    u&b=%d  res=%d  \n\n",
+    // log_i("ui=%d  B=%d S=%b C=%d    u&b=%d  res=%d  \n\n",
     //     uiControl, UI_CTL_BOTH, UI_CTL_SELECT, UI_CTL_SELECT,
     //     uiControl&UI_CTL_BOTH, ButtonPressed_Both);
     ctl_selection = 0;
@@ -182,7 +182,7 @@ void refreshMenuDisplay() {
     if(ctl_selection == 0) {
       ctl_selection = selected_line;
     } else {
-      // Serial.printf("Changin' the VALS! \n");
+      // log_i("Changin' the VALS! \n");
       switch(menuSequence)
       {
         case MENU_TT100: changeSensorConfigVal(TT100.alarm, ctl_selection); break;

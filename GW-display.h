@@ -42,26 +42,6 @@ byte uiControl = 0;
 bool autoScroll = true;
 bool manScrollNext = false;
 
-void displayBattDebug(){
-  Heltec.display->clear();
-  Heltec.display->setFont(Dialog_plain_14);
-
-  Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
-  String toPrint = String("  Trent's: ") + String(meth1) + String(" mV");
-  Heltec.display->drawString(0, 0, toPrint);
-
-  String toPrint2 = String("  Heltec's: ") + String(meth2) + String(" mV");
-  Heltec.display->drawString(0, 16, toPrint2);
-
-
-  Heltec.display->setFont(ArialMT_Plain_10);
-  toPrint = String(" RAW: ") + String(raw_counts);
-  Heltec.display->drawString(0, 50, toPrint);
-
-  Heltec.display->display();
-
-}
-
 void drawBattery(int8_t batt) {
   if        (batt > 100) {
     Heltec.display->drawXbm(100, 0, battery_level_w, battery_level_h, battery_nobatt_16);
@@ -237,7 +217,7 @@ void showSleepWarning(){
     } else {
       Heltec.display->setFont(ArialMT_Plain_10);
       Heltec.display->drawString(screen_width/2, screen_height/2+7, 
-          "Wake in " + String(TIME_SLEEPING)+mins");
+          "Wake in " + String(TIME_SLEEPING)+"mins");
     }
 }
 
@@ -308,18 +288,5 @@ void refreshDataDisplay() {
       screenSequence = 1;
 }
 
-
-
-void initScreenSwitcher(){
-
-  autoScroll = true;
-}
-
-
-void initializeGWDisplay(){
-  uiControl = 0;
-  // Heltec.display->flipScreenVertically();
-  Heltec.display->setFont(ArialMT_Plain_10);
-}
 
 #endif

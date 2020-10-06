@@ -1,3 +1,9 @@
+#ifdef CONFIG_ARDUHAL_ESP_LOG
+  #undef CONFIG_ARDUHAL_ESP_LOG
+  #define CONFIG_ARDUHAL_ESP_LOG (4)
+#endif
+
+
 #include "Arduino.h"
 #include "heltec.h"
 #include "GW-display.h"
@@ -9,6 +15,7 @@
 #include "battery.h"
 #include "GW-sleep.h"
 #include "GW-menu.h"
+
 
 // #define _dbg_en 1
 // #include "GW-header.h"
@@ -62,21 +69,19 @@ void initTouchInput() {
 
 int printTouchVal(int pin) {
   int val = touchRead(pin);
-  Serial.printf("Touched PIN#%d: %d \n\n",pin, val);
+  log_i("Touched PIN#%d: %d \n\n",pin, val);
   return val;
 }
 
 void readUserControls(){
-  // Serial.printf(" menuCTL=%d, inSel=%d  inChg=%d\n\n ",uiControl,inputSelTouched,inputChgTouched );
+  // log_i(" menuCTL=%d, inSel=%d  inChg=%d\n\n ",uiControl,inputSelTouched,inputChgTouched );
   
   naptime = millis() + TIME_AWAKE * SEC_TO_MILLI_SEC;
   timeForAutoScroll = millis() + RETURN_TO_AUTOSCROLL;
 
-
   /* Reset autoscroll settings since we still have user interaction */
   if(autoScroll) {
       autoScroll = false;
-      // ts.enable(MANUAL_FASTSCROLL_TASK);
       ts.disable(SCROLL_TASK);
     }
 
@@ -85,6 +90,8 @@ void readUserControls(){
     screenSet = SCREEN_SET_MENU;
     uiControl = 0;
   }
+
+  Heltec.display->displayOn();
   scrollDisplay();
 }
 
@@ -126,32 +133,12 @@ void checkTouchInput() {
   
 }
 
-  // if (inputSelTouched){
-  //   if (uiControl & UI_CTL_SELECT == 0) {
-  //     uiControl |= UI_CTL_SELECT;
-  //    } else if (touchRead(TOUCH_INPUT_SELECT_PIN) > TOUCH_THRESHOLD) {
-  //      inputSelTouched = false;
-  //      return;
-  //    } else {return;}
-  // } else if (inputChgTouched){
-  //   if (uiControl & UI_CTL_CHANGE == 0) {
-  //     uiControl |= UI_CTL_CHANGE;
-  //    } else if (touchRead(TOUCH_INPUT_CHANGE_PIN) > TOUCH_THRESHOLD) {
-  //      inputChgTouched = false;
-  //      return;
-  //    } else {return;}
-  // } else {return;}
-
-
-
 
 /* Task that's scheduled to make screen choices */
 void scrollDisplay() {
   ulong now = millis();
   if( now > timeForAutoScroll) {
-    // ts.disable(MANUAL_FASTSCROLL_TASK);
     ts.enable(SCROLL_TASK);
-    
     autoScroll = true;
     screenSet = SCREEN_SET_NORMAL;
   }
@@ -166,10 +153,6 @@ void scrollDisplay() {
       uiControl &= ~UI_CTL_SELECT;
     }
     uiControl &= ~UI_CTL_CHANGE; // Actually we don't do anythign yet with CHANGE in NORMAL
-
-    // Serial.printf("trying to reset :m=%d  c=%d  ~c=%d   m&~m=%d", uiControl,UI_CTL_SELECT,~UI_CTL_SELECT,uiControl & ~UI_CTL_SELECT);
-    // uiControl = uiControl & ~UI_CTL_SELECT;
-    // Serial.printf("RESULT to reset :m=%d  c=%d  ~c=%d   m&~m=%d\n", uiControl,UI_CTL_SELECT,~UI_CTL_SELECT,uiControl & ~UI_CTL_SELECT);
   }
   
   if (screenSet==SCREEN_SET_MENU) {
@@ -219,7 +202,7 @@ void loadAlarmData(){
   pinMode(13, OUTPUT);
 
   if ( esp_reset_reason() == ESP_RST_DEEPSLEEP) {
-    Serial.print("Looks like we just woke up from sleep. Try to load alarm data");
+    log_i("Looks like we just woke up from sleep. Try to load alarm data");
     if(TT100.alarm.in_use) TT100.alarm.loadFromRTC(rtcTT100);
     if(TT101.alarm.in_use) TT101.alarm.loadFromRTC(rtcTT101);
     if(MT200.alarm.in_use) MT200.alarm.loadFromRTC(rtcMT200);
@@ -249,18 +232,18 @@ void getReadyForSleep(){
   now = millis();
   if(naptime > now) return; // Not naptime yet
 
-  Serial.printf("\nNaptime:%d > now:%d    Time to Sleep!\n", naptime, now);
+  log_i("\nNaptime:%d > now:%d    Time to Sleep!\n", naptime, now);
 
-  Serial.print("Stopping all tasks: ");
+  log_i("Stopping all tasks: ");
   ts.disableAll();
   shutdownFlags |= SHTDN_SLEEP_NOW;
 
   ts.enable(SCROLL_TASK); //Now with shutdownFlag, this displays warning
 
-  Serial.print("Flushing datalog buffer: ");
+  log_i("Flushing datalog buffer: ");
   flushInfluxBuffer();
 
-  Serial.print("Stopping Wifi: ");
+  log_i("Stopping Wifi: ");
   //Wifi.end();
 
   //backup alarm states to RTC
@@ -271,18 +254,29 @@ void getReadyForSleep(){
 }
 
 
+void initializeGWDisplay(){
+  if(esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TOUCHPAD) {
+    Heltec.display->displayOff();
+  }
+
+  uiControl = 0;
+  autoScroll = true;
+  screenSet = SCREEN_SET_NORMAL;
+}
 
 void setup() {
-  /* Check the reason for wakeup */
-  print_wakeup_reason();
-
   /* Initialize manufacturer libraries */
   Heltec.begin(true /*DisplayEnable Enable*/, false /*LoRa Disable*/, true /*Serial Enable*/);
 
+  /* Check the reason for wakeup */
+  print_wakeup_reason();
+
+  if(esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TOUCHPAD) {
+    log_i("Someone Woke me through Touch!");
+  }
 
   /* Initialize Application parts */
   initializeGWDisplay();
-  initScreenSwitcher();
   initializeGWwifi(); // This will also initialize influx if wifi connection is succesful
   initBatteryMonitor();
   initSensors();
@@ -303,13 +297,9 @@ void setup() {
   ts.add(CHK_TOUCH_TASK,     250, [&](void *) { checkTouchInput();     }, nullptr, false);
   ts.add(READLOG_MOIST_TASK,2200, [&](void *) { getAllMoistures();     }, nullptr, true );
 
-  // ts.add(MANUAL_FASTSCROLL_TASK, 350, [&](void *) { scrollDisplay(); }, nullptr, true);
-  // ts.disable(MANUAL_FASTSCROLL_TASK);
-
   delay(500);
-
   readingTaskEnabled = true;
-  Serial.print("Done Setup!\n");
+  log_i("Done Setup!\n");
 }
 
 void loop() {

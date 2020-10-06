@@ -60,9 +60,9 @@ class DhtSensor {
       name = String(str);
       this->pin = pin;
       state = SENSOR_IDLE;
-      //serial.printf("Starting Sensor %s...", this->repr());
+      log_i("Starting Sensor %s...", this->repr());
       this->dht.setup(pin, DHTesp::DHT11);
-      //serial.println("done.");
+      log_i("done.");
     }
     DhtSensor(){}
     void newDp(float t, float h, float d) {
@@ -164,28 +164,22 @@ MoistSensor MT201;
 
 
 void initSensors() {
-  //serial.println("Starting Sensors...");
+  log_i("Starting Sensors...");
   TT100.init("TT-100", tt100_pin);
   TT101.init("TT-101", tt101_pin);
 
-
-
   initDhtBackgroundReaderTask(); // Will setup background task and put it to sleep
-  //serial.println("  ...DHT Sensors initiated.");
-
-
+  log_i("  ...DHT Sensors initiated.");
 
   MT200.init("MT-200", mt200_pin);
   MT201.init("MT-201", mt201_pin);
-
-
-  //serial.println("  ...MOIST Sensors initiated.");
+  log_i("  ...MOIST Sensors initiated.");
 }
 
 
 bool logMoistData(MoistSensor &sensor) {
   if (sensor.state != SENSOR_IDLE) {
-    //serial.printf("\nSensor %s busy <%d>, log later.\n", sensor.str(), sensor.state);
+    log_i("\nSensor %s busy <%d>, log later.\n", sensor.str(), sensor.state);
     return SENSOR_BUSY;
   }
   sensor.state = SENSOR_UPLOADING;
@@ -207,20 +201,19 @@ bool logMoistData(MoistSensor &sensor) {
     }
 
     if (!writeNewPoint(point)) {
-      //serial.print("  InfluxDB write status failed: ");
-      //serial.println(getLastErrorMessage());
+      log_e("  InfluxDB write status failed: %s", getLastErrorMessage());
       sensor.state = SENSOR_IDLE;
       return false;
     }
   }
-  //serial.println("  Data QUEUED for upload");
+  log_i("  Data QUEUED for upload");
   sensor.state = SENSOR_IDLE;
   return true;
 }
 
 int getMoisture(MoistSensor &sensor){
   if (sensor.state == SENSOR_UPLOADING) {
-    //serial.printf("\nSensor %s: Busy UPLOADING, read sensor later.\n", sensor.str());
+    log_i("\nSensor %s: Busy UPLOADING, read sensor later.\n", sensor.str());
     return SENSOR_UPLOADING;
   }
   sensor.state = SENSOR_READING;
@@ -229,7 +222,7 @@ int getMoisture(MoistSensor &sensor){
   uint reading = analogRead(sensor.pin);
 
   if (reading < MIN_MOIST_ADC_READING) {
-      //serial.printf("\nSensor %s: Problem Reading ANALOG INPUT. RAW=%d.\n", sensor.str(),reading);
+      log_w("\nSensor %s: Problem Reading ANALOG INPUT. RAW=%d.\n", sensor.str(),reading);
 
         sensor.state = SENSOR_IDLE;
         return SENSOR_BUSY;
@@ -239,10 +232,8 @@ int getMoisture(MoistSensor &sensor){
   int imoist = map((int)(volts*1000), 955, 3100, 100000, 10000);
   float moist = (float)imoist/1000.0;
   sensor.newDp(moist, volts, reading);
-  // //serial.print( "\n    RAW     VOLTS      MOIST     \n");
-  // //serial.printf("   %d     %.2fV      %.1f%%           \n", reading, volts, moist);
 
-  //serial.printf("Sensor %s: READ data ", sensor.repr());
+  log_i("Sensor %s: READ data ", sensor.repr());
   sensor.state = SENSOR_IDLE;
   if (logMoistData(sensor)) return SENSOR_IDLE;
   return SENSOR_FAULT;
@@ -256,22 +247,22 @@ int getAllMoistures() {
 
 int getDhtTemperature(DhtSensor &sensor) {
     if (sensor.state == SENSOR_UPLOADING) {
-      //serial.printf("\nSensor %s: Busy UPLOADING, read sensor later.\n", sensor.str());
+      log_i("\nSensor %s: Busy UPLOADING, read sensor later.\n", sensor.str());
       return SENSOR_UPLOADING;
     }
     sensor.state = SENSOR_READING;
     TempAndHumidity newValues = sensor.dht.getTempAndHumidity();
 
     if (sensor.dht.getStatus() != 0) {
-        //serial.printf("\nSensor %s: DHTesp error status: %s\n", 
-        //    sensor.str(), sensor.dht.getStatusString());
+        log_e("\nSensor %s: DHTesp error status: %s\n", 
+           sensor.str(), sensor.dht.getStatusString());
         sensor.state = SENSOR_IDLE;
         return sensor.dht.getStatus();
     }
     float dewpoint = sensor.dht.computeDewPoint(newValues.temperature, newValues.humidity);
     sensor.newDp(newValues.temperature, newValues.humidity, dewpoint);
 
-    //serial.printf("Sensor %s: Read data\n", sensor.repr());
+    log_i("Sensor %s: Read data\n", sensor.repr());
     sensor.state = SENSOR_IDLE;
     return SENSOR_IDLE;
 }
@@ -288,7 +279,7 @@ int getAllTemperatures() {
 
 void logDhtData(DhtSensor &sensor) {
   if (sensor.state != SENSOR_IDLE) {
-    //serial.printf("\nSensor %s busy <%d>, log later.\n", sensor.str(), sensor.state);
+    log_i("\nSensor %s busy <%d>, log later.\n", sensor.str(), sensor.state);
     return;
   }
   sensor.state = SENSOR_UPLOADING;
@@ -310,8 +301,7 @@ void logDhtData(DhtSensor &sensor) {
     }
 
     if (!writeNewPoint(point)) {
-      //serial.print("  InfluxDB write status failed: ");
-      //serial.println(getLastErrorMessage());
+      log_e("  InfluxDB write status failed: %s", getLastErrorMessage());
     }
   }
   sensor.state = SENSOR_IDLE;

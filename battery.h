@@ -52,8 +52,6 @@ int calcBattPercent(float v){
 }
 
 
-int meth1 = 0;
-int meth2 = 0;
 int raw_counts = 0;
 
 float readBattLevel() { 
@@ -72,12 +70,8 @@ float readBattLevel() {
   
   // I calculated that this *should* work //
   readings[idx] = (newreading * 3300 / 4095 * VOLTAGE_DIVIDER) + FUDGE_OFFSET;  // scale to mV from ADC and undo voltage divider to battery
-  meth1 = readings[idx];
 
-  // Heltec had this formula //
-  meth2 = (newreading * 0.0025*1000.0) - 375;
-  // readings[idx] = newreading * 0.0025*1000.0;
-  //Serial.printf("ADC Raw Reading[%d]: %d mV\n", newreading, readings[idx]);
+  log_d("ADC Raw Reading[%d]: %d mV\n", newreading, readings[idx]);
 
   
   total = total + readings[idx];
@@ -85,7 +79,7 @@ float readBattLevel() {
   if (idx >= VBATT_SMOOTH) { idx=0; } // Check if idx is past the end of buffer, if so then reset
   
   float voltage = ((float)total / 1000.0 / (float)VBATT_SMOOTH);
-  //Serial.printf("Battery Voltage (avg): %.2f\n", voltage);
+  log_d("Battery Voltage (avg): %.2f\n", voltage);
   
   return voltage;  
 }
@@ -97,7 +91,7 @@ void initBatteryMonitor()
   digitalWrite(VEXT_GPIO, LOW); // to Read Vbatt on pin VBATT_GPIO
   //adcAttachPin(VBATT_GPIO);   // Used to read voltage from battery
 
-  Serial.println("Initiating battery monitor...\n   Taking initial sample of 'Vbatt'...");
+  log_i("Initiating battery monitor...\n   Taking initial sample of 'Vbatt'...");
   for (uint8_t i = 0;i < VBATT_SMOOTH;i++) {
     readBattLevel();
   }
@@ -112,13 +106,11 @@ void sendBatteryToInflux() {
   battStatusInflux.addField("percent", battPercent);
 
   // Write point
-  //Serial.print("\nWriting Battery Status: ");
-  //Serial.println(battStatusInflux.toLineProtocol());
+  log_i("\nWriting Battery Status: %s", battStatusInflux.toLineProtocol());
   if (!writeNewPoint(battStatusInflux)) {
-    Serial.print("InfluxDB write Battery Status failed: ");
-    Serial.println(getLastErrorMessage());
+     log_e("InfluxDB write Battery Status failed: %s", getLastErrorMessage());
   } else {
-    //Serial.println("  ...done.\n");
+    log_i("  ...done.");
   }
   
 }
