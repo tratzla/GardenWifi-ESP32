@@ -42,7 +42,7 @@ void logWifiStatus() {
   }
 
   // Serial.print("\nWriting Wifi Status: ");
-  Serial.println(pointWifiStatus.toLineProtocol());
+  // Serial.println(pointWifiStatus.toLineProtocol());
   if (!writeNewPoint(pointWifiStatus)) {
     Serial.print("InfluxDB write wifistatus failed: ");
     Serial.println(getLastErrorMessage());

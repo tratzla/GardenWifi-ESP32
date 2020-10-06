@@ -5,9 +5,10 @@
 #include "GW-influx.h"
 #include "battery.h"
 
-#define TIME_TO_WAKE_MS 30000
-#define TIME_TO_SLEEP_S 10
-#define SEC_TO_MICROS_SEC 1000000
+// #define TIME_TO_WAKE_MS 30000
+// #define TIME_TO_SLEEP_S 10
+#define MIN_TO_MICROS_SEC 60000000
+#define SEC_TO_MILLI_SEC 1000
 
 #define SHTDN_NOSHUTDOWN 0
 #define SHTDN_INIT_SLEEP 1
@@ -17,9 +18,11 @@
 ulong naptime;
 ulong now;
 byte shutdownFlags = SHTDN_NOSHUTDOWN;
+uint TIME_SLEEPING = 1;  // minutes
+uint TIME_AWAKE    = 30; // seconds
 
 void initSleep() {
-  naptime = millis() + TIME_TO_WAKE_MS;
+  naptime = millis() + TIME_AWAKE * SEC_TO_MILLI_SEC;
 }
 
 
@@ -44,8 +47,8 @@ void goToDeepSleep() {
     gpio_deep_sleep_hold_en();
 
     delay(100);
-    esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP_S * SEC_TO_MICROS_SEC);
-    Serial.printf("\n\nSleep timer set at %d seconds\n", TIME_TO_SLEEP_S);
+    esp_sleep_enable_timer_wakeup(TIME_SLEEPING * MIN_TO_MICROS_SEC);
+    Serial.printf("\n\nSleep timer set at %d minutes\n", TIME_SLEEPING);
   }
 
   delay(100);

@@ -8,7 +8,6 @@
 #include "TickerScheduler.h"
 #include "battery.h"
 #include "GW-sleep.h"
-#include "GW-touch.h"
 #include "GW-menu.h"
 
 // #define _dbg_en 1
@@ -31,75 +30,153 @@ static const char* TAG = "Main";
 
 TickerScheduler ts(12);
 long timeForAutoScroll;
+ 
+#define SCREEN_SET_NORMAL 1
+#define SCREEN_SET_MENU 2
+
+byte screenSet = SCREEN_SET_NORMAL;
 
 
+
+#define TOUCH_INPUT_SELECT_PIN 27 // GPIO27 aka TOUCH6
+#define TOUCH_INPUT_CHANGE_PIN 14 // GPIO14 aka TOUCH7
+
+uint TOUCH_THRESHOLD = 25;
 bool inputSelTouched;
-bool inputCtlTouched;
+bool inputChgTouched;
 
-void touch27_callback() {
+void inputSelect_cb() {
   inputSelTouched = true;
 }
 
-void touch14_callback() {
-  inputCtlTouched = true;
+void inputChange_cb() {
+  inputChgTouched = true;
 }
+
+void initTouchInput() {
+  inputSelTouched = false;
+  inputChgTouched = false;
+  touchAttachInterrupt(TOUCH_INPUT_SELECT_PIN, inputSelect_cb, TOUCH_THRESHOLD);
+  touchAttachInterrupt(TOUCH_INPUT_CHANGE_PIN, inputChange_cb, TOUCH_THRESHOLD);
+}
+
+int printTouchVal(int pin) {
+  int val = touchRead(pin);
+  Serial.printf("Touched PIN#%d: %d \n\n",pin, val);
+  return val;
+}
+
+void readUserControls(){
+  // Serial.printf(" menuCTL=%d, inSel=%d  inChg=%d\n\n ",uiControl,inputSelTouched,inputChgTouched );
+  
+  naptime = millis() + TIME_AWAKE * SEC_TO_MILLI_SEC;
+  timeForAutoScroll = millis() + RETURN_TO_AUTOSCROLL;
+
+
+  /* Reset autoscroll settings since we still have user interaction */
+  if(autoScroll) {
+      autoScroll = false;
+      // ts.enable(MANUAL_FASTSCROLL_TASK);
+      ts.disable(SCROLL_TASK);
+    }
+
+  /* Change screenset if necessary */
+  if ( screenSet==SCREEN_SET_NORMAL && uiControl==UI_CTL_BOTH ) {
+    screenSet = SCREEN_SET_MENU;
+    uiControl = 0;
+  }
+  scrollDisplay();
+}
+
+
+void checkTouchInput() {
+
+  static bool prev_inputSelTouched = false;
+  static bool prev_inputChgTouched = false;
+
+  
+  if(inputSelTouched && inputChgTouched) {
+    if (!(prev_inputChgTouched && prev_inputSelTouched) ) {
+      uiControl = UI_CTL_BOTH;
+      readUserControls();
+    }
+    inputChgTouched = touchRead(TOUCH_INPUT_CHANGE_PIN) < TOUCH_THRESHOLD;
+    inputSelTouched = touchRead(TOUCH_INPUT_SELECT_PIN) < TOUCH_THRESHOLD;
+    prev_inputSelTouched = inputSelTouched;
+    prev_inputChgTouched = inputChgTouched;
+  }
+
+  if(inputSelTouched) {
+    if (!prev_inputSelTouched) {
+      uiControl = UI_CTL_SELECT;
+      readUserControls();
+    }
+    inputSelTouched = touchRead(TOUCH_INPUT_SELECT_PIN) < TOUCH_THRESHOLD;
+    prev_inputSelTouched = inputSelTouched;
+  }
+
+  if(inputChgTouched) {
+    if (!prev_inputChgTouched) {
+      uiControl = UI_CTL_CHANGE;
+      readUserControls();
+    }
+    inputChgTouched = touchRead(TOUCH_INPUT_CHANGE_PIN) < TOUCH_THRESHOLD;
+    prev_inputChgTouched = inputChgTouched;
+  }
+  
+}
+
+  // if (inputSelTouched){
+  //   if (uiControl & UI_CTL_SELECT == 0) {
+  //     uiControl |= UI_CTL_SELECT;
+  //    } else if (touchRead(TOUCH_INPUT_SELECT_PIN) > TOUCH_THRESHOLD) {
+  //      inputSelTouched = false;
+  //      return;
+  //    } else {return;}
+  // } else if (inputChgTouched){
+  //   if (uiControl & UI_CTL_CHANGE == 0) {
+  //     uiControl |= UI_CTL_CHANGE;
+  //    } else if (touchRead(TOUCH_INPUT_CHANGE_PIN) > TOUCH_THRESHOLD) {
+  //      inputChgTouched = false;
+  //      return;
+  //    } else {return;}
+  // } else {return;}
+
+
+
 
 /* Task that's scheduled to make screen choices */
 void scrollDisplay() {
   ulong now = millis();
   if( now > timeForAutoScroll) {
-    ts.disable(MANUAL_FASTSCROLL_TASK);
+    // ts.disable(MANUAL_FASTSCROLL_TASK);
+    ts.enable(SCROLL_TASK);
+    
     autoScroll = true;
-    manScrollNext = false;
+    screenSet = SCREEN_SET_NORMAL;
   }
 
-  if (!autoScroll && !manScrollNext) {return;}
-  
-  refreshDataDisplay();
-  // refreshMenuDisplay();
-  manScrollNext = false;
-}
 
-void checkTouchInput() {
+  if (screenSet==SCREEN_SET_NORMAL) {
+    // if (!autoScroll && uiControl&UI_CTL_SELECT==0) {return;}
+    if (autoScroll) {
+      refreshDataDisplay();
+    } else if (uiControl&UI_CTL_SELECT) {
+      refreshDataDisplay();
+      uiControl &= ~UI_CTL_SELECT;
+    }
+    uiControl &= ~UI_CTL_CHANGE; // Actually we don't do anythign yet with CHANGE in NORMAL
 
-  if (inputSelTouched){
-    if (menuControl & MENU_CTL_SELECT == 0) {
-      menuControl |= MENU_CTL_SELECT;
-      Serial.println("New User Touched 'Select'");
-    } else {
-      Serial.println("Double read?'");
-      inputSelTouched = false;
-    }
-  } else {
-    if(menuControl & MENU_CTL_SELECT != 0) {
-      Serial.println("Odd. already reset? or too fast to reset touch?");
-    }
+    // Serial.printf("trying to reset :m=%d  c=%d  ~c=%d   m&~m=%d", uiControl,UI_CTL_SELECT,~UI_CTL_SELECT,uiControl & ~UI_CTL_SELECT);
+    // uiControl = uiControl & ~UI_CTL_SELECT;
+    // Serial.printf("RESULT to reset :m=%d  c=%d  ~c=%d   m&~m=%d\n", uiControl,UI_CTL_SELECT,~UI_CTL_SELECT,uiControl & ~UI_CTL_SELECT);
   }
   
-
-  if(inputCtlTouched && !(menuControl & MENU_CTL_CHANGE == 0)) {
-    menuControl |= MENU_CTL_CHANGE;
-    Serial.println("User Touched 'Control'");
-
-  } else {return;}
-  // printTouchVal();
-
-  Serial.printf("   menuControl=%d, inputSelTouched=%d  inputCtlTouched=%d\n\n ",menuControl,inputSelTouched,inputCtlTouched );
-  naptime = millis() + TIME_TO_WAKE_MS;
-  timeForAutoScroll = millis() + RETURN_TO_AUTOSCROLL;
-  manScrollNext = true;
-
-  if(autoScroll) {
-    autoScroll = false;
-    ts.enable(MANUAL_FASTSCROLL_TASK);
+  if (screenSet==SCREEN_SET_MENU) {
+    refreshMenuDisplay();
   }
-    inputCtlTouched = 0;
-    inputSelTouched = 0;
-
-
 
 }
-
 
 /*
  * ALARMING
@@ -193,12 +270,7 @@ void getReadyForSleep(){
   ts.enable(DEEP_SLEEP_TASK);
 }
 
-void initTouchInput() {
-  inputSelTouched = false;
-  inputCtlTouched = false;
-  touchAttachInterrupt(TOUCH7_AKA_GPIO27, touch27_callback, TOUCH_THRESHOLD);
-  touchAttachInterrupt(TOUCH6_AKA_GPIO14, touch14_callback, TOUCH_THRESHOLD);
-}
+
 
 void setup() {
   /* Check the reason for wakeup */
@@ -228,11 +300,11 @@ void setup() {
   ts.add(CHK_ALARMS_TASK,   2500, [&](void *) { checkAlarmActions();   }, nullptr, true );
   ts.add(READLOG_BATT_TASK, 3600, [&](void *) { readLogBattery();      }, nullptr, true );
   ts.add(DEEP_SLEEP_TASK,   6000, [&](void *) { getReadyForSleep();    }, nullptr, false);
-  ts.add(CHK_TOUCH_TASK,     500, [&](void *) { checkTouchInput();     }, nullptr, false);
+  ts.add(CHK_TOUCH_TASK,     250, [&](void *) { checkTouchInput();     }, nullptr, false);
   ts.add(READLOG_MOIST_TASK,2200, [&](void *) { getAllMoistures();     }, nullptr, true );
 
-  ts.add(MANUAL_FASTSCROLL_TASK, 350, [&](void *) { scrollDisplay(); }, nullptr, true);
-  ts.disable(MANUAL_FASTSCROLL_TASK);
+  // ts.add(MANUAL_FASTSCROLL_TASK, 350, [&](void *) { scrollDisplay(); }, nullptr, true);
+  // ts.disable(MANUAL_FASTSCROLL_TASK);
 
   delay(500);
 

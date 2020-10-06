@@ -1,5 +1,5 @@
-// #ifndef GW_HEADER
-// #define GW_HEADER
+#ifndef GW_HEADER
+#define GW_HEADER
 
 
 
@@ -19,4 +19,4 @@
 // #define info(msg) Serial.print("[INFO] - ");Serial.print(msg)
 
 
-// #endif
+#endif

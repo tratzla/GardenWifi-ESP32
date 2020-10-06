@@ -23,6 +23,11 @@
 #define dew_offset -2
 
 
+#define UI_CTL_SELECT 1
+#define UI_CTL_CHANGE 2
+#define UI_CTL_BOTH   3
+
+byte uiControl = 0;
 
 
 #define SCREEN_TT100_RH 1
@@ -222,7 +227,7 @@ void drawWifiSDetails() {
 
 
 void showSleepWarning(){
-    // String toPrint = String("Sleeping for"+ String(TIME_TO_SLEEP_S)+"s");
+    // String toPrint = String("Sleeping for"+ String(TIME_SLEEPING)+"min");
     Heltec.display->setFont(Dialog_plain_14);
     Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
     Heltec.display->drawString(screen_width/2, screen_height/2-14, "Sleeping NOW!");
@@ -232,7 +237,7 @@ void showSleepWarning(){
     } else {
       Heltec.display->setFont(ArialMT_Plain_10);
       Heltec.display->drawString(screen_width/2, screen_height/2+7, 
-          "Wake in " + String(TIME_TO_SLEEP_S)+"s");
+          "Wake in " + String(TIME_SLEEPING)+mins");
     }
 }
 
@@ -312,6 +317,7 @@ void initScreenSwitcher(){
 
 
 void initializeGWDisplay(){
+  uiControl = 0;
   // Heltec.display->flipScreenVertically();
   Heltec.display->setFont(ArialMT_Plain_10);
 }
