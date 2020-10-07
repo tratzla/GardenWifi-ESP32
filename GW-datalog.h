@@ -1,20 +1,33 @@
 #ifndef GWDATAPOINT
 #define GWDATAPOINT
 
+
+
+// enum compare_type {
+//   gt, // >
+//   lt, // <
+//   eq, // =
+// };
+
+// enum alarm_states {
+//   NORMAL,
+//   ALARM,
+//   UNKNOWN,
+// };
+
+typedef uint8_t compare_type;
+typedef uint8_t alarm_states;
+
+#define gt      1
+#define lt      2
+#define eq      3
+#define NORMAL  4
+#define ALARM   5
+#define UNKNOWN 6
+
 #define datalog_max_length 5
 
-enum compare_type {
-  gt, // >
-  lt, // <
-  eq, // =
-};
-
-enum alarm_states {
-  NORMAL,
-  ALARM,
-  UNKNOWN,
-};
-
+/* Holds all state information for storing in RTC during sleep */
 struct persist_alm {
   float vals[3];
   uint i;
@@ -23,6 +36,13 @@ struct persist_alm {
   compare_type compare;
   alarm_states state;
 };
+
+/* Holds minimum preference information for storing in nvram */
+typedef struct {
+  float sp;
+  compare_type compare;
+  bool in_use;
+} nvram_alarm_prefs_t;
 
 class alarm_config {
   public:
@@ -87,6 +107,15 @@ class alarm_config {
       }
       return state;
     }
+
+    bool configureAlarm(compare_type comp, float setp){
+      sp = setp;
+      i = 0;
+      len = 0;
+      compare = comp;
+      in_use = true;
+    }
+
     void loadFromRTC(persist_alm &alm){
       for(int j=0;j<3;j++){
         vals[j] = alm.vals[j];

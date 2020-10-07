@@ -1,8 +1,3 @@
-#ifdef CONFIG_ARDUHAL_ESP_LOG
-  #undef CONFIG_ARDUHAL_ESP_LOG
-  #define CONFIG_ARDUHAL_ESP_LOG (4)
-#endif
-
 
 #include "Arduino.h"
 #include "heltec.h"
@@ -14,12 +9,10 @@
 #include "TickerScheduler.h"
 #include "battery.h"
 #include "GW-sleep.h"
+#include "Preferences.h"
+
+Preferences prefs;
 #include "GW-menu.h"
-
-
-// #define _dbg_en 1
-// #include "GW-header.h"
-
 
 #define SCROLL_TASK 0
 #define LOG_WIFI_TASK 1
@@ -187,33 +180,77 @@ void checkAlarmActions(){
 /* We will try to save and restore alarm SP, 
  * State, Data, Output through deepsleeps using RTC
  */
+
+
+
+
+
+
 RTC_DATA_ATTR persist_alm rtcTT100;
 RTC_DATA_ATTR persist_alm rtcTT101;
 RTC_DATA_ATTR persist_alm rtcMT200;
 RTC_DATA_ATTR persist_alm rtcMT201;
+
+
+
+
+void loadAlarmFromNvram(String name, alarm_config &alarm) {
+  bool in_use = prefs.getBool(String(name + "in_use").c_str(), false);
+
+  if (in_use) {
+    log_w("Found alarm config in nvram");
+    alarm.sp = in_use;
+    alarm.compare = prefs.getUChar(String(name + "compare").c_str(), eq);
+    alarm.sp = prefs.getFloat(String(name + "sp").c_str(), NAN);
+  }
+}
+
 void loadAlarmData(){
 
-  MT200.configureAlarm(gt, 60);
-  MT201.configureAlarm(gt, 65);
-  TT100.configureAlarm(lt, 26);
-  TT101.configureAlarm(lt, 20);
+  MT200.alarm.configureAlarm(gt, 60);
+  MT201.alarm.configureAlarm(gt, 65);
+  TT100.alarm.configureAlarm(lt, 26);
+  TT101.alarm.configureAlarm(lt, 20);
 
   pinMode(12, OUTPUT);
   pinMode(13, OUTPUT);
 
   if ( esp_reset_reason() == ESP_RST_DEEPSLEEP) {
-    log_i("Looks like we just woke up from sleep. Try to load alarm data");
+    log_w("Looks like we just woke up from sleep. Try to load alarm data");
     if(TT100.alarm.in_use) TT100.alarm.loadFromRTC(rtcTT100);
     if(TT101.alarm.in_use) TT101.alarm.loadFromRTC(rtcTT101);
     if(MT200.alarm.in_use) MT200.alarm.loadFromRTC(rtcMT200);
-    if(MT201.alarm.in_use) MT201.alarm.loadFromRTC(rtcMT201);
-    
-    checkAlarmActions();
+    if(MT201.alarm.in_use) MT201.alarm.loadFromRTC(rtcMT201);    
+
     gpio_hold_dis(GPIO_NUM_12);
     gpio_hold_dis(GPIO_NUM_13);
+  } else {
+    log_w("Looks like we are booting fresh: Load alarm Prefs from nvram");
+    prefs.begin("GardenWifi");
+    
+    log_w("Looking for alarm cfg for %s in nvram...", TT100.name);
+    // loadAlarmFromNvram(TT100.name, TT100.alarm);
+    log_w("Got SENSOR :: %s", TT100.repr());
+
+    log_w("Looking for alarm cfg for %s in nvram...", TT101.name);
+    // loadAlarmFromNvram(TT101.name, TT101.alarm);
+    log_w("Got SENSOR :: %s", TT101.repr());
+
+    log_w("Looking for alarm cfg for %s in nvram...", MT200.name);
+    // loadAlarmFromNvram(MT200.name, MT200.alarm);
+    log_w("Got SENSOR :: %s", MT200.repr());
+
+    log_w("Looking for alarm cfg for %s in nvram...", MT201.name);
+    // loadAlarmFromNvram(MT201.name, MT201.alarm);
+    log_w("Got SENSOR :: %s", MT201.repr());
+
+    prefs.end();
   }
-  
+      checkAlarmActions();
 }
+
+
+//////
 void saveAlarmData(){
   if(TT100.alarm.in_use) TT100.alarm.copyToRTC(rtcTT100);
   if(TT101.alarm.in_use) TT101.alarm.copyToRTC(rtcTT101);

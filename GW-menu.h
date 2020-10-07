@@ -45,10 +45,44 @@
 #define MENU_FINAL_SCREEN 5
 #define MENU_FIRST_SCREEN 1
 
+void saveAlarmConfigToNvram(String name, alarm_config &alarm){
+  prefs.begin("GardenWifi");
+  log_w("Attempting to save into NVRAM:<%s> %s",name);
+
+  // bool in_use = prefs.getBool(String(name + "in_use").c_str(), false);
+  // if( in_use != alarm.in_use)
+    prefs.putBool(String(name + "in_use").c_str(), alarm.in_use);
+
+  // uint8_t compare = prefs.getUChar(String(name + "compare").c_str(), eq);
+  // if( compare != alarm.compare)
+    prefs.putUChar(String(name + "compare").c_str(), alarm.compare);
+
+  // float sp = prefs.getFloat(String(name + "sp").c_str(), NAN);
+  // if( sp != alarm.sp)
+    prefs.putFloat(String(name + "sp").c_str(), alarm.sp);
+
+  // if (in_use) {
+  //   log_w("Found alarm config in nvram");
+  //   alarm.sp = in_use;
+  //   alarm.compare = prefs.getUChar(String(name + "compare").c_str(), eq);
+  //   alarm.sp = prefs.getFloat(String(name + "sp").c_str(), NAN);
 
 
-void changeSensorConfigVal(alarm_config &alarm, uint ctl_selection){
+  // if(key=="in_use")
+  //   prefs.putBool(String(name + "in_use").c_str(), (bool)va_arg(args, int));
+    
+  // if(key=="compare")
+  //   prefs.putUChar(String(name + "compare").c_str(), (uint8_t)va_arg(args, int));
+    
+  // if(key=="sp")
+  //   prefs.putFloat(String(name + "sp").c_str(), (float)va_arg(args, double));
 
+  // va_end(args);
+  prefs.end();
+}
+
+void changeSensorConfigVal(alarm_config &alarm, uint ctl_selection, String name){
+  
   if (ctl_selection == _LINE_ONE) {
     alarm.in_use = !alarm.in_use;
   }
@@ -56,15 +90,13 @@ void changeSensorConfigVal(alarm_config &alarm, uint ctl_selection){
     alarm.sp += alarm.sp > 30.0 ? -31 : 0.5;
   }
   if (ctl_selection == _LINE_THREE) {
-    switch (alarm.compare) 
-      {
-        case gt: alarm.compare = lt; break;
-        case lt: alarm.compare = eq; break;
-        case eq: alarm.compare = gt; break;
-      }
+    if(alarm.compare == gt) alarm.compare = lt;
+    if(alarm.compare == lt) alarm.compare = eq; 
+    if(alarm.compare == eq) alarm.compare = gt; 
   }
   if (ctl_selection == _LINE_FOUR) { }
 
+  
 }
 
 void menuDrawConfigTitle(String title){
@@ -149,7 +181,7 @@ void showConfigSensor(String name, alarm_config &alarm, uint selected_line, uint
 
 
 void refreshMenuDisplay() {
-  static uint menuSequence = MENU_SLEEP;
+  static uint menuSequence = MENU_TT100;
   static uint selected_line = _LINE_ONE;
   static uint ctl_selection = 0;
 
@@ -168,6 +200,14 @@ void refreshMenuDisplay() {
 
   if(ButtonPressed_Select) {
     if(ctl_selection > 0) {
+      // switch(menuSequence)
+      // {
+      //   case MENU_TT100: saveAlarmConfigToNvram(TT100.name, TT100.alarm); break;
+      //   case MENU_TT101: saveAlarmConfigToNvram(TT101.name, TT101.alarm); break;
+      //   case MENU_MT200: saveAlarmConfigToNvram(MT200.name, MT200.alarm); break;
+      //   case MENU_MT201: saveAlarmConfigToNvram(MT201.name, MT201.alarm); break;
+      //   // case MENU_SLEEP: saveAlarmConfigToNvram(ctl_selection); break;
+      // }
       ctl_selection = 0;
     } else {
       if(selected_line >= _LINE_FOUR)
@@ -185,11 +225,11 @@ void refreshMenuDisplay() {
       // log_i("Changin' the VALS! \n");
       switch(menuSequence)
       {
-        case MENU_TT100: changeSensorConfigVal(TT100.alarm, ctl_selection); break;
-        case MENU_TT101: changeSensorConfigVal(TT101.alarm, ctl_selection); break;
-        case MENU_MT200: changeSensorConfigVal(MT200.alarm, ctl_selection); break;
-        case MENU_MT201: changeSensorConfigVal(MT201.alarm, ctl_selection); break;
-        case MENU_SLEEP:  changeSleepConfigVal(ctl_selection); break;
+        case MENU_TT100: changeSensorConfigVal(TT100.alarm, ctl_selection, TT100.name); break;
+        case MENU_TT101: changeSensorConfigVal(TT101.alarm, ctl_selection, TT101.name); break;
+        case MENU_MT200: changeSensorConfigVal(MT200.alarm, ctl_selection, MT200.name); break;
+        case MENU_MT201: changeSensorConfigVal(MT201.alarm, ctl_selection, MT201.name); break;
+        case MENU_SLEEP: changeSleepConfigVal(ctl_selection); break;
       }
     }
     ButtonUnpress_Change;
