@@ -106,7 +106,7 @@ void sendBatteryToInflux() {
   battStatusInflux.addField("percent", battPercent);
 
   // Write point
-  log_i("\nWriting Battery Status: %s", battStatusInflux.toLineProtocol());
+  log_i("\nWriting Battery Status: %s", String(battStatusInflux.toLineProtocol()));
   if (!writeNewPoint(battStatusInflux)) {
      log_e("InfluxDB write Battery Status failed: %s", getLastErrorMessage());
   } else {

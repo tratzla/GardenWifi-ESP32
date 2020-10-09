@@ -18,6 +18,8 @@
 
 #define MIN_MOIST_ADC_READING 500
 
+bool alarm_config_unsaved_change = false;
+
 /* DHT Sensor Item, including datalog */
 class DhtSensor {
   public:
@@ -225,10 +227,10 @@ int getMoisture(MoistSensor &sensor){
   return SENSOR_FAULT;
 }
 
-int getAllMoistures() {
-  getMoisture(MT200);
-  getMoisture(MT201);
-}
+// int getAllMoistures() {
+//   getMoisture(MT200);
+//   getMoisture(MT201);
+// }
 
 
 int getDhtTemperature(DhtSensor &sensor) {
@@ -293,10 +295,7 @@ void logDhtData(DhtSensor &sensor) {
   sensor.state = SENSOR_IDLE;
 }
 
-void queueSensorDataLogs() { 
-  logDhtData(TT100);
-  logDhtData(TT101);
-}
+
 
 
 

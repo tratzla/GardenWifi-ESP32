@@ -9,10 +9,11 @@
 #include "TickerScheduler.h"
 #include "battery.h"
 #include "GW-sleep.h"
-#include "Preferences.h"
-
-Preferences prefs;
+#include "GW-nvs.h"
 #include "GW-menu.h"
+
+#define SERIAL_ENABLED true
+// #define SERIALSPEED 115200
 
 #define SCROLL_TASK 0
 #define LOG_WIFI_TASK 1
@@ -23,10 +24,9 @@ Preferences prefs;
 #define CHK_TOUCH_TASK 6
 #define READLOG_MOIST_TASK 7
 #define CHK_ALARMS_TASK 8
-#define RETURN_TO_AUTOSCROLL_TASK 10
+#define ALM_TO_NVS_TASK 9
 #define MANUAL_FASTSCROLL_TASK 11
 
-static const char* TAG = "Main";
 
 TickerScheduler ts(12);
 long timeForAutoScroll;
@@ -154,110 +154,13 @@ void scrollDisplay() {
 
 }
 
-/*
- * ALARMING
- * Some simple alarming action. Nothing fancy
- * this should be improved. Also manually save  
- *  and load alarm data to RTC memory.
- */
-void checkAlarmActions(){
-  if( TT100.alarm.state == ALARM || 
-      TT101.alarm.state == ALARM   ) {
-        digitalWrite(13, HIGH);
-  } else {
-        digitalWrite(13, LOW);
-  }
-
-  if( MT200.alarm.state == ALARM || 
-      MT201.alarm.state == ALARM   ) {
-        digitalWrite(12, HIGH);
-  } else {
-        digitalWrite(12, LOW);
-  }
-
-}
-
-/* We will try to save and restore alarm SP, 
- * State, Data, Output through deepsleeps using RTC
- */
 
 
 
 
 
 
-RTC_DATA_ATTR persist_alm rtcTT100;
-RTC_DATA_ATTR persist_alm rtcTT101;
-RTC_DATA_ATTR persist_alm rtcMT200;
-RTC_DATA_ATTR persist_alm rtcMT201;
 
-
-
-
-void loadAlarmFromNvram(String name, alarm_config &alarm) {
-  bool in_use = prefs.getBool(String(name + "in_use").c_str(), false);
-
-  if (in_use) {
-    log_w("Found alarm config in nvram");
-    alarm.sp = in_use;
-    alarm.compare = prefs.getUChar(String(name + "compare").c_str(), eq);
-    alarm.sp = prefs.getFloat(String(name + "sp").c_str(), NAN);
-  }
-}
-
-void loadAlarmData(){
-
-  MT200.alarm.configureAlarm(gt, 60);
-  MT201.alarm.configureAlarm(gt, 65);
-  TT100.alarm.configureAlarm(lt, 26);
-  TT101.alarm.configureAlarm(lt, 20);
-
-  pinMode(12, OUTPUT);
-  pinMode(13, OUTPUT);
-
-  if ( esp_reset_reason() == ESP_RST_DEEPSLEEP) {
-    log_w("Looks like we just woke up from sleep. Try to load alarm data");
-    if(TT100.alarm.in_use) TT100.alarm.loadFromRTC(rtcTT100);
-    if(TT101.alarm.in_use) TT101.alarm.loadFromRTC(rtcTT101);
-    if(MT200.alarm.in_use) MT200.alarm.loadFromRTC(rtcMT200);
-    if(MT201.alarm.in_use) MT201.alarm.loadFromRTC(rtcMT201);    
-
-    gpio_hold_dis(GPIO_NUM_12);
-    gpio_hold_dis(GPIO_NUM_13);
-  } else {
-    log_w("Looks like we are booting fresh: Load alarm Prefs from nvram");
-    prefs.begin("GardenWifi");
-    
-    log_w("Looking for alarm cfg for %s in nvram...", TT100.name);
-    // loadAlarmFromNvram(TT100.name, TT100.alarm);
-    log_w("Got SENSOR :: %s", TT100.repr());
-
-    log_w("Looking for alarm cfg for %s in nvram...", TT101.name);
-    // loadAlarmFromNvram(TT101.name, TT101.alarm);
-    log_w("Got SENSOR :: %s", TT101.repr());
-
-    log_w("Looking for alarm cfg for %s in nvram...", MT200.name);
-    // loadAlarmFromNvram(MT200.name, MT200.alarm);
-    log_w("Got SENSOR :: %s", MT200.repr());
-
-    log_w("Looking for alarm cfg for %s in nvram...", MT201.name);
-    // loadAlarmFromNvram(MT201.name, MT201.alarm);
-    log_w("Got SENSOR :: %s", MT201.repr());
-
-    prefs.end();
-  }
-      checkAlarmActions();
-}
-
-
-//////
-void saveAlarmData(){
-  if(TT100.alarm.in_use) TT100.alarm.copyToRTC(rtcTT100);
-  if(TT101.alarm.in_use) TT101.alarm.copyToRTC(rtcTT101);
-  if(MT200.alarm.in_use) MT200.alarm.copyToRTC(rtcMT200);
-  if(MT201.alarm.in_use) MT201.alarm.copyToRTC(rtcMT201);
-}
-/**********************/
 
 
 
@@ -280,11 +183,14 @@ void getReadyForSleep(){
   log_i("Flushing datalog buffer: ");
   flushInfluxBuffer();
 
+  // log_w("Checking for unsaved alarm config: ");
+  // saveAlarmData();
+
   log_i("Stopping Wifi: ");
   //Wifi.end();
 
   //backup alarm states to RTC
-  saveAlarmData();
+  saveAlarmDataInRTC();
 
   // Re-enable this task so we give another 5s for anything else to finish
   ts.enable(DEEP_SLEEP_TASK);
@@ -303,7 +209,7 @@ void initializeGWDisplay(){
 
 void setup() {
   /* Initialize manufacturer libraries */
-  Heltec.begin(true /*DisplayEnable Enable*/, false /*LoRa Disable*/, true /*Serial Enable*/);
+  Heltec.begin(true /*DisplayEnable Enable*/, false /*LoRa Disable*/, SERIAL_ENABLED /*Serial Enable*/);
 
   /* Check the reason for wakeup */
   print_wakeup_reason();
@@ -328,11 +234,12 @@ void setup() {
   ts.add(LOG_WIFI_TASK,     6000, [&](void *) { logWifiStatus();       }, nullptr, false);
   ts.add(READ_DHT_TASK,     2000, [&](void *) { readDhtSensors();      }, nullptr, false);
   ts.add(LOG_DHT_TASK,      3500, [&](void *) { queueSensorDataLogs(); }, nullptr, false);
-  ts.add(CHK_ALARMS_TASK,   2500, [&](void *) { checkAlarmActions();   }, nullptr, true );
-  ts.add(READLOG_BATT_TASK, 3600, [&](void *) { readLogBattery();      }, nullptr, true );
+  // ts.add(CHK_ALARMS_TASK,   2500, [&](void *) { checkAlarmActions();   }, nullptr, true );
+  ts.add(READLOG_BATT_TASK, 5600, [&](void *) { readLogBattery();      }, nullptr, true );
   ts.add(DEEP_SLEEP_TASK,   6000, [&](void *) { getReadyForSleep();    }, nullptr, false);
   ts.add(CHK_TOUCH_TASK,     250, [&](void *) { checkTouchInput();     }, nullptr, false);
-  ts.add(READLOG_MOIST_TASK,2200, [&](void *) { getAllMoistures();     }, nullptr, true );
+  // ts.add(READLOG_MOIST_TASK,2200, [&](void *) { getAllMoistures();     }, nullptr, true );
+  // ts.add(ALM_TO_NVS_TASK,   9999, [&](void *) { saveAlarmData();       }, nullptr, true );
 
   delay(500);
   readingTaskEnabled = true;

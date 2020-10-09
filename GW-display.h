@@ -76,6 +76,8 @@ void drawSignalbars(int8_t sig) {
   }
 }
 
+/**********************/
+/*** Temperature ******/
 void drawTempIcon(bool busy) {
   uint x = screen_width/2 + icon_offset;
   uint y = 16; // TODO this needs to be a config/member
@@ -116,7 +118,8 @@ void drawTemperatureStatus(uint startx, uint starty, DhtDataPoint datapoint){
   Heltec.display->drawString(x, y, unit);
 }
 
-
+/**********************/
+/****** Humidity ******/
 void drawHumidityIcon(bool busy) {
   uint x = screen_width/2 + icon_offset;
   uint y = 40; // TODO this needs to be a config/member
@@ -177,6 +180,14 @@ void drawWifiStatus() {
   }
 }
 
+
+
+
+
+
+/* 
+ * Wifi Status
+*/
 void drawWifiSDetails() {
     uint wifiCentre = screen_width/2 - 16;
     Heltec.display->setFont(ArialMT_Plain_10);

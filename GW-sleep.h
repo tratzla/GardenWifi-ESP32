@@ -19,7 +19,7 @@ ulong naptime;
 ulong now;
 byte shutdownFlags = SHTDN_NOSHUTDOWN;
 uint TIME_SLEEPING = 1;  // minutes
-uint TIME_AWAKE    = 30; // seconds
+uint TIME_AWAKE    = 300; // seconds
 
 void initSleep() {
   naptime = millis() + TIME_AWAKE * SEC_TO_MILLI_SEC;
@@ -48,11 +48,12 @@ void goToDeepSleep() {
 
     delay(100);
     esp_sleep_enable_timer_wakeup(TIME_SLEEPING * MIN_TO_MICROS_SEC);
-    log_i("\n\nSleep timer set at %d minutes\n", TIME_SLEEPING);
+    log_w("\n\nSleep timer set at %d minutes\n", TIME_SLEEPING);
+    
   }
 
   delay(100);
-  log_i("Going to DEEP sleep now!");
+  log_w("Going to DEEP sleep now!");
   delay(2);
   esp_deep_sleep_start();
 }

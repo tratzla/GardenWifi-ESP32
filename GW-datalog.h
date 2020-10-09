@@ -1,29 +1,18 @@
 #ifndef GWDATAPOINT
 #define GWDATAPOINT
 
+// typedef uint8_t compare_type;
+// typedef uint8_t alarm_states;
 
+enum compare_states {COMP_GT, COMP_LT, COMP_EQ};
+enum alarm_states {NORMAL, ALARM, UNKNOWN};
 
-// enum compare_type {
-//   gt, // >
-//   lt, // <
-//   eq, // =
-// };
-
-// enum alarm_states {
-//   NORMAL,
-//   ALARM,
-//   UNKNOWN,
-// };
-
-typedef uint8_t compare_type;
-typedef uint8_t alarm_states;
-
-#define gt      1
-#define lt      2
-#define eq      3
-#define NORMAL  4
-#define ALARM   5
-#define UNKNOWN 6
+// #define COMP_GT 1
+// #define COMP_LT 2
+// #define COMP_EQ 3
+// #define NORMAL  4
+// #define ALARM   5
+// #define UNKNOWN 6
 
 #define datalog_max_length 5
 
@@ -33,16 +22,10 @@ struct persist_alm {
   uint i;
   uint len;
   float sp;
-  compare_type compare;
+  compare_states compare;
   alarm_states state;
 };
 
-/* Holds minimum preference information for storing in nvram */
-typedef struct {
-  float sp;
-  compare_type compare;
-  bool in_use;
-} nvram_alarm_prefs_t;
 
 class alarm_config {
   public:
@@ -50,15 +33,16 @@ class alarm_config {
     uint i;
     uint len;
     float sp;
-    compare_type compare;
+    compare_states compare;
     alarm_states state;
     bool in_use = false;
+    bool unsaved_change = false;
     String strStr;
     String strSte;
     String strCmp;
 
     const char *charCompare() {
-      strCmp = String(compare==gt?"> [gt]": compare==lt?"< [lt]":"= [eq]");
+      strCmp = String(compare==COMP_GT?"> [gt]": compare==COMP_LT?"< [lt]":"= [eq]");
       return strCmp.c_str();
     }
 
@@ -84,7 +68,7 @@ class alarm_config {
       check_alarm();
     }
 
-    alarm_states check_alarm() {
+    uint check_alarm() {
       if(len < 2) {
         state = UNKNOWN;
       } else {
@@ -94,13 +78,13 @@ class alarm_config {
         }
         t = t/len;
         switch(compare) {
-          case gt :
+          case COMP_GT :
             state = t > sp ? ALARM : NORMAL;
               break; 
-          case lt :
+          case COMP_LT :
             state = t < sp ? ALARM : NORMAL;
               break; 
-          case eq :
+          case COMP_EQ :
             state = t == sp ? ALARM : NORMAL;
               break; 
         }
@@ -108,7 +92,7 @@ class alarm_config {
       return state;
     }
 
-    bool configureAlarm(compare_type comp, float setp){
+    bool configureAlarm(compare_states comp, float setp){
       sp = setp;
       i = 0;
       len = 0;
