@@ -100,17 +100,13 @@ void initBatteryMonitor()
 }
 
 void sendBatteryToInflux() {
-
   battStatusInflux.clearFields();
   battStatusInflux.addField("voltage", battVoltage);
   battStatusInflux.addField("percent", battPercent);
 
-  // Write point
-  log_i("\nWriting Battery Status: %s", String(battStatusInflux.toLineProtocol()));
   if (!writeNewPoint(battStatusInflux)) {
-     log_e("InfluxDB write Battery Status failed: %s", getLastErrorMessage());
-  } else {
-    log_i("  ...done.");
+    log_w("Writing Battery Status: %s", battStatusInflux.toLineProtocol().c_str());
+    log_e("InfluxDB write Battery Status failed: %s", getLastErrorMessage());
   }
   
 }

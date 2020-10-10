@@ -9,7 +9,6 @@
 #include "TickerScheduler.h"
 #include "battery.h"
 #include "GW-sleep.h"
-#include "GW-nvs.h"
 #include "GW-menu.h"
 
 #define SERIAL_ENABLED true
@@ -31,10 +30,7 @@
 TickerScheduler ts(12);
 long timeForAutoScroll;
  
-#define SCREEN_SET_NORMAL 1
-#define SCREEN_SET_MENU 2
 
-byte screenSet = SCREEN_SET_NORMAL;
 
 
 
@@ -158,13 +154,6 @@ void scrollDisplay() {
 
 
 
-
-
-
-
-
-
-
 void getReadyForSleep(){
   if(shutdownFlags) 
     goToDeepSleep(); // If we've already prepped for sleep, actually do it now
@@ -190,7 +179,8 @@ void getReadyForSleep(){
   //Wifi.end();
 
   //backup alarm states to RTC
-  saveAlarmDataInRTC();
+  // saveAlarmDataInRTC();
+
 
   // Re-enable this task so we give another 5s for anything else to finish
   ts.enable(DEEP_SLEEP_TASK);
@@ -223,7 +213,7 @@ void setup() {
   initializeGWwifi(); // This will also initialize influx if wifi connection is succesful
   initBatteryMonitor();
   initSensors();
-  loadAlarmData();
+  // loadAlarmData();
   initSleep();
   initTouchInput();
   delay(1500);
@@ -234,7 +224,7 @@ void setup() {
   ts.add(LOG_WIFI_TASK,     6000, [&](void *) { logWifiStatus();       }, nullptr, false);
   ts.add(READ_DHT_TASK,     2000, [&](void *) { readDhtSensors();      }, nullptr, false);
   ts.add(LOG_DHT_TASK,      3500, [&](void *) { queueSensorDataLogs(); }, nullptr, false);
-  // ts.add(CHK_ALARMS_TASK,   2500, [&](void *) { checkAlarmActions();   }, nullptr, true );
+  ts.add(CHK_ALARMS_TASK,   2500, [&](void *) { checkAlarmActions();   }, nullptr, true );
   ts.add(READLOG_BATT_TASK, 5600, [&](void *) { readLogBattery();      }, nullptr, true );
   ts.add(DEEP_SLEEP_TASK,   6000, [&](void *) { getReadyForSleep();    }, nullptr, false);
   ts.add(CHK_TOUCH_TASK,     250, [&](void *) { checkTouchInput();     }, nullptr, false);

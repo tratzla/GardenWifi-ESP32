@@ -2,6 +2,7 @@
 #define GW_SLEEP
 
 #include <Arduino.h>
+#include "heltec.h"
 #include "GW-influx.h"
 #include "battery.h"
 
@@ -19,9 +20,13 @@ ulong naptime;
 ulong now;
 byte shutdownFlags = SHTDN_NOSHUTDOWN;
 uint TIME_SLEEPING = 1;  // minutes
-uint TIME_AWAKE    = 300; // seconds
+uint TIME_AWAKE    = 20; // seconds
+
+void saveSleeps_nvs(uint timeAwake, uint timeSleeping);
+void loadSleeps_nvs(uint &timeAwake, uint &timeSleeping);
 
 void initSleep() {
+  loadSleeps_nvs(TIME_AWAKE, TIME_SLEEPING);
   naptime = millis() + TIME_AWAKE * SEC_TO_MILLI_SEC;
 }
 
@@ -29,7 +34,7 @@ void initSleep() {
 void goToDeepSleep() {
   
   if (lowBattFlag) {
-    log_e("[E] - LOW BATTERY detectec. Shutting DOWN!");
+    log_e("[E] - LOW BATTERY detected. Shutting DOWN!");
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_SLOW_MEM, ESP_PD_OPTION_OFF);
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_FAST_MEM, ESP_PD_OPTION_OFF);
@@ -45,6 +50,12 @@ void goToDeepSleep() {
     gpio_hold_en(GPIO_NUM_12);
     gpio_hold_en(GPIO_NUM_13);
     gpio_deep_sleep_hold_en();
+    
+
+    delay(100);
+    log_i("Turning off Vext during deep sleep.");
+    Heltec.VextOFF();
+
 
     delay(100);
     esp_sleep_enable_timer_wakeup(TIME_SLEEPING * MIN_TO_MICROS_SEC);

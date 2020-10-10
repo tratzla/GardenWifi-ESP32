@@ -30,13 +30,16 @@
 byte uiControl = 0;
 
 
-#define SCREEN_TT100_RH 1
-#define SCREEN_TT100_DP 2
-#define SCREEN_TT101_RH 3
-#define SCREEN_TT101_DP 4
-#define SCREEN_WIFI 5
-#define SCREEN_END 6
-#define SCREEN_GO_TO_SLEEP 7
+#define SCREEN_TT100_RH    1
+#define SCREEN_TT100_DP    2
+#define SCREEN_TT101_RH    3
+#define SCREEN_TT101_DP    4
+#define SCREEN_WIFI        5
+#define SCREEN_MT200       6
+// #define SCREEN_MT201       7
+
+#define SCREEN_END         7
+#define SCREEN_GO_TO_SLEEP 8
 
 #define RETURN_TO_AUTOSCROLL 15000
 bool autoScroll = true;
@@ -87,8 +90,38 @@ void drawTempIcon(bool busy) {
     Heltec.display->drawXbm(x, y, thermometer_24_w, thermometer_24_h, thermometer_24);
   }
 }
+void drawMositureStatus(uint startx, uint starty, data_point_t datapoint){
+  String toPrint = String("");
+  String unit = String("%");
+  uint x = startx;
+  uint y = starty;
 
-void drawTemperatureStatus(uint startx, uint starty, DhtDataPoint datapoint){
+  //Write value itself
+  if (datapoint.timestamp == 0) {
+    toPrint = String("---");
+  } else {
+    toPrint = String(abs(datapoint.val[MOISTURE]), 1);
+  }
+  Heltec.display->setFont(font_value);
+  Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+  Heltec.display->drawString(screen_width/4, y, toPrint);
+  Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
+
+  /* Format value strings */
+  // Write negative sign separate
+  if (datapoint.val[MOISTURE] < 0 ) {
+    Heltec.display->setFont(font_value);
+    Heltec.display->drawString(x, y, String("-"));
+  }
+
+  /* Units */
+  x = screen_width/2 + units_offset;
+  Heltec.display->setFont(font_units);
+  Heltec.display->drawString(x, y, unit);
+}
+
+
+void drawTemperatureStatus(uint startx, uint starty, data_point_t datapoint){
   String toPrint = String("");
   String unit = String("°C");
   uint x = startx;
@@ -98,7 +131,7 @@ void drawTemperatureStatus(uint startx, uint starty, DhtDataPoint datapoint){
   if (datapoint.timestamp == 0) {
     toPrint = String("---");
   } else {
-    toPrint = String(abs(datapoint.temperature), 1);
+    toPrint = String(abs(datapoint.val[TEMPERATURE]), 1);
   }
   Heltec.display->setFont(font_value);
   Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
@@ -107,7 +140,7 @@ void drawTemperatureStatus(uint startx, uint starty, DhtDataPoint datapoint){
 
   /* Format value strings */
   // Write negative sign separate
-  if (datapoint.temperature < 0 ) {
+  if (datapoint.val[TEMPERATURE] < 0 ) {
     Heltec.display->setFont(font_value);
     Heltec.display->drawString(x, y, String("-"));
   }
@@ -130,14 +163,23 @@ void drawHumidityIcon(bool busy) {
   }
 }
 
-void drawHumidityStatus(uint startx, uint starty, bool use_dewpoint, DhtDataPoint datapoint) {
+void drawMoistIcon(bool busy, uint y) {
+  uint x = screen_width/2 + icon_offset;
+  if (busy) {
+    Heltec.display->drawXbm(x, y, drop_24_w, drop_24_h, drop_wait_24);
+  } else {
+    Heltec.display->drawXbm(x, y, drop_24_w, drop_24_h, drop_24);
+  }
+}
+
+void drawHumidityStatus(uint startx, uint starty, bool use_dewpoint, data_point_t datapoint) {
   String toPrint = String("");
   String unit = String("%");
   uint x = startx;
   uint y = starty;
 
   /* print value */
-  float value = use_dewpoint ? datapoint.dewpoint : datapoint.humidity;
+  float value = use_dewpoint ? datapoint.val[DEWPOINT]  : datapoint.val[HUMIDITY] ;
   if (datapoint.timestamp == 0) {
     toPrint = String("---");
   } else {    
@@ -168,7 +210,7 @@ void drawHumidityStatus(uint startx, uint starty, bool use_dewpoint, DhtDataPoin
 }
 
 // Humidity function for printing in RELATIVE HUMIDITY
-void drawHumidityStatus(uint startx, uint starty, DhtDataPoint datapoint){
+void drawHumidityStatus(uint startx, uint starty, data_point_t datapoint){
   drawHumidityStatus(startx, starty, false, datapoint);
 }
 
@@ -258,14 +300,32 @@ void refreshDataDisplay() {
     Heltec.display->drawString(screen_width-screen_width/4, 0, autoScroll?" A":" M");
 
     drawTemperatureStatus(0, 16, TT100.getData());
-    drawTempIcon(TT100.state != SENSOR_IDLE);
+    drawTempIcon(TT100.activity != SENSOR_IDLE);
 
     if (screenSequence == SCREEN_TT100_DP) {
       drawHumidityStatus(0, 40, true, TT100.getData());
     } else {
       drawHumidityStatus(0, 40, TT100.getData());
     }
-    drawHumidityIcon(TT100.state != SENSOR_IDLE);
+    drawHumidityIcon(TT100.activity != SENSOR_IDLE);
+
+    if (TT100.AlarmConfig->in_use) {
+      if (TT100.AlarmConfig->state == ALARM) {
+        Heltec.display->setFont(font_value);
+        Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+        Heltec.display->drawString(screen_width-screen_width/8, 16, "!!");
+      }
+      if (TT100.AlarmConfig->state == NORMAL) {
+        Heltec.display->setFont(font_value);
+        Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+        Heltec.display->drawString(screen_width-screen_width/8, 16, "OK");
+      }
+      if (TT100.AlarmConfig->state == UNKNOWN) {
+        Heltec.display->setFont(font_value);
+        Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+        Heltec.display->drawString(screen_width-screen_width/8, 16, "?");
+      }
+    }
   }
   
   if (screenSequence == SCREEN_TT101_RH || screenSequence == SCREEN_TT101_DP) {
@@ -274,15 +334,67 @@ void refreshDataDisplay() {
     Heltec.display->drawString(screen_width/2, 0, "TT-101");
     Heltec.display->drawString(screen_width-screen_width/4, 0, autoScroll?" A":" M");
     drawTemperatureStatus(0, 16, TT101.getData());
-    drawTempIcon(TT101.state != SENSOR_IDLE);
+    drawTempIcon(TT101.activity != SENSOR_IDLE);
 
     if (screenSequence == SCREEN_TT101_DP) {
       drawHumidityStatus(0, 40, true, TT101.getData());
     } else {
       drawHumidityStatus(0, 40, TT101.getData());
     }
-      drawHumidityIcon(TT101.state != SENSOR_IDLE);
+    drawHumidityIcon(TT101.activity != SENSOR_IDLE);
+    if (TT101.AlarmConfig->in_use) {
+      if (TT101.AlarmConfig->state == ALARM) {
+        Heltec.display->setFont(font_value);
+        Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+        Heltec.display->drawString(screen_width-screen_width/8, 16, "!!");
+      }
+      if (TT101.AlarmConfig->state == NORMAL) {
+        Heltec.display->setFont(font_value);
+        Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+        Heltec.display->drawString(screen_width-screen_width/8, 16, "OK");
+      }
+      if (TT101.AlarmConfig->state == UNKNOWN) {
+        Heltec.display->setFont(font_value);
+        Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+        Heltec.display->drawString(screen_width-screen_width/8, 16, "?");
+      }
+    }
   }
+
+  if (screenSequence == SCREEN_MT200) {
+    Heltec.display->setFont(ArialMT_Plain_10);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+    Heltec.display->drawString(screen_width/2, 0, "MT-200/1");
+    Heltec.display->drawString(screen_width-screen_width/4, 0, autoScroll?" A":" M");
+    drawMositureStatus(0, 16, MT200.getData());
+    drawMoistIcon(MT200.activity != SENSOR_IDLE, 16) ;
+
+    drawMositureStatus(0, 40, MT201.getData());
+    drawMoistIcon(MT201.activity != SENSOR_IDLE, 40);
+
+    String toPrint;
+    switch(MT200.AlarmConfig->state)
+    {
+      case ALARM:    toPrint = String("!!"); break;
+      case NORMAL:   toPrint = String("OK"); break;
+      case UNKNOWN:  toPrint = String("??"); break;
+    }
+    Heltec.display->setFont(font_value);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+    Heltec.display->drawString(screen_width-screen_width/8, 16, toPrint);
+
+    switch(MT201.AlarmConfig->state)
+    {
+      case ALARM:    toPrint = String("!!"); break;
+      case NORMAL:   toPrint = String("OK"); break;
+      case UNKNOWN:  toPrint = String("??"); break;
+    }
+    Heltec.display->setFont(font_value);
+    Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
+    Heltec.display->drawString(screen_width-screen_width/8, 40, toPrint);
+  }
+
+
 
   if (screenSequence == SCREEN_WIFI) {
     drawWifiSDetails();

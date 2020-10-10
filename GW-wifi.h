@@ -11,8 +11,8 @@ Point pointWifiStatus("Wifi_Status");
 void WiFiEvent(WiFiEvent_t event){
     switch(event) {
       case SYSTEM_EVENT_STA_GOT_IP:
-          log_i("WiFi connected! IP address: %s", WiFi.localIP());
-          log_i("Gateway: %s", WiFi.gatewayIP());
+          log_i("WiFi connected! IP address: %s", WiFi.localIP().toString().c_str());
+          log_i("Gateway: %s", WiFi.gatewayIP().toString().c_str());
           initializeGWinflux();
           break;
       case SYSTEM_EVENT_STA_DISCONNECTED:
@@ -36,8 +36,8 @@ void logWifiStatus() {
     pointWifiStatus.addField("rssi", WiFi.RSSI());
   }
 
-  log_i("\nWriting Wifi Status: %s", String(pointWifiStatus.toLineProtocol()));
   if (!writeNewPoint(pointWifiStatus)) {
+    log_w("Writing Wifi Status: %s", pointWifiStatus.toLineProtocol().c_str());
     log_e("InfluxDB write wifistatus failed: %s", getLastErrorMessage());
   }
 }

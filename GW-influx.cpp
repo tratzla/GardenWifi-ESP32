@@ -7,9 +7,9 @@ void initializeGWinflux() {
 
   // Check server connection
   if (client.validateConnection()) {
-    log_i("Connected to InfluxDB: %s", client.getServerUrl());
+    log_i("Connected to InfluxDB: %s", client.getServerUrl().c_str());
   } else {
-    log_e("InfluxDB connection failed: %s", client.getLastErrorMessage());
+    log_e("InfluxDB connection failed: %s", client.getLastErrorMessage().c_str());
   }
 
   client.setWriteOptions(WriteOptions().writePrecision(WritePrecision::MS));
